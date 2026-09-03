@@ -1,211 +1,154 @@
-const { EmbedBuilder, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ButtonBuilder, ButtonStyle } = require('discord.js');
-const games = require('../systems/games');
+const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { formatCredits, getEffectiveMaxBet } = require('../utils/helpers');
+const { getUser } = require('../systems/economy');
+const { getRepInfo } = require('../systems/reputation');
 const config = require('../config');
-const { formatCredits } = require('../utils/helpers');
-const { log } = require('../systems/logging');
 
 module.exports = {
   selectMenus: {
     game_select: handleGameSelect,
   },
+  buttons: {},
   modals: {
-    bet_modal_roulette: handleRouletteBet,
-    bet_modal_coinflip: handleCoinflipBet,
-    bet_modal_blackjack: handleBlackjackBet,
-    bet_modal_slots: handleSlotsBet,
-    bet_modal_dice: handleDiceBet,
-    bet_modal_higherlower: handleHigherLowerBet,
-    bet_modal_rps: handleRpsBet,
+    'bet_modal_roulette': (interaction) => handleBetModal(interaction, 'roulette'),
+    'bet_modal_coinflip': (interaction) => handleBetModal(interaction, 'coinflip'),
+    'bet_modal_blackjack': (interaction) => handleBetModal(interaction, 'blackjack'),
+    'bet_modal_slots': (interaction) => handleBetModal(interaction, 'slots'),
+    'bet_modal_dice': (interaction) => handleBetModal(interaction, 'dice'),
+    'bet_modal_higherlower': (interaction) => handleBetModal(interaction, 'higherlower'),
+    'bet_modal_rps': (interaction) => handleBetModal(interaction, 'rps'),
   },
 };
 
-function backRow() {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('nav_games_back').setLabel('← Back to Games').setStyle(ButtonStyle.Secondary)
-  );
+function divider() {
+  return '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+}
+
+function getGameInfo(gameType) {
+  const games = {
+    roulette: {
+      name: '🎰 Roulette',
+      description: 'Bet on red, black, green, or a specific number (0-36).\n**Payouts:** Red/Black: 2x | Green: 14x | Number: 35x',
+      color: '#e74c3c',
+    },
+    coinflip: {
+      name: '🪙 Coinflip',
+      description: 'Pick heads or tails. **2x payout** on win.',
+      color: '#f1c40f',
+    },
+    blackjack: {
+      name: '🃏 Blackjack',
+      description: 'Get as close to 21 as possible without going over.\nBeat the dealer to win!',
+      color: '#2ecc71',
+    },
+    slots: {
+      name: '🎰 Slots',
+      description: 'Spin the reels! Match symbols to win big.\n**3 of a kind = 10x** | **2 of a kind = 2x**',
+      color: '#9b59b6',
+    },
+    dice: {
+      name: '🎲 Dice',
+      description: 'Predict what number the dice will land on (1-6).\n**6x payout** on correct guess.',
+      color: '#3498db',
+    },
+    higherlower: {
+      name: '📊 Higher/Lower',
+      description: 'A number is revealed. Guess if the next is higher or lower.\n**2x payout** on correct guess.',
+      color: '#e67e22',
+    },
+    rps: {
+      name: '✊ Rock Paper Scissors',
+      description: 'Classic Rock Paper Scissors against the bot.\n**2x payout** on win.',
+      color: '#1abc9c',
+    },
+  };
+  return games[gameType] || { name: gameType, description: 'A fun game!', color: '#95a5a6' };
 }
 
 async function handleGameSelect(interaction) {
-  const game = interaction.values[0];
-  const modalMap = {
-    roulette: { id: 'bet_modal_roulette', title: '🎰 Roulette', fields: [
-      { id: 'bet_amount', label: 'Bet Amount', placeholder: 'Enter credits' },
-      { id: 'bet_choice', label: 'Bet Type', placeholder: 'red / black / green / number (e.g. 17)' },
-    ]},
-    coinflip: { id: 'bet_modal_coinflip', title: '🪙 Coinflip', fields: [
-      { id: 'bet_amount', label: 'Bet Amount', placeholder: 'Enter credits' },
-      { id: 'bet_choice', label: 'Choice', placeholder: 'heads or tails' },
-    ]},
-    blackjack: { id: 'bet_modal_blackjack', title: '🃏 Blackjack', fields: [
-      { id: 'bet_amount', label: 'Bet Amount', placeholder: 'Enter credits' },
-    ]},
-    slots: { id: 'bet_modal_slots', title: '🎰 Slots', fields: [
-      { id: 'bet_amount', label: 'Bet Amount', placeholder: 'Enter credits' },
-    ]},
-    dice: { id: 'bet_modal_dice', title: '🎲 Dice', fields: [
-      { id: 'bet_amount', label: 'Bet Amount', placeholder: 'Enter credits' },
-      { id: 'bet_choice', label: 'Predict (1-6)', placeholder: 'Enter number' },
-    ]},
-    higherlower: { id: 'bet_modal_higherlower', title: '📊 Higher/Lower', fields: [
-      { id: 'bet_amount', label: 'Bet Amount', placeholder: 'Enter credits' },
-      { id: 'bet_choice', label: 'Choice', placeholder: 'higher / lower / equal' },
-    ]},
-    rps: { id: 'bet_modal_rps', title: '✊ RPS', fields: [
-      { id: 'bet_amount', label: 'Bet Amount', placeholder: 'Enter credits' },
-      { id: 'bet_choice', label: 'Choice', placeholder: 'rock / paper / scissors' },
-    ]},
-  };
+  const gameType = interaction.values[0];
+  const game = getGameInfo(gameType);
+  const userData = getUser(interaction.user.id, interaction.guild.id);
+  const maxBet = getEffectiveMaxBet(userData.reputation);
 
-  const cfg = modalMap[game];
-  if (!cfg) return;
+  const embed = new EmbedBuilder()
+    .setTitle(game.name)
+    .setDescription(`${divider()}\n${game.description}\n\n**Your Balance:** ${formatCredits(userData.credits)}\n**Max Bet:** ${formatCredits(maxBet)}\n${divider()}`)
+    .setColor(game.color)
+    .setFooter({ text: 'Enter your bet to start playing' })
+    .setTimestamp();
 
-  const modal = new ModalBuilder().setCustomId(cfg.id).setTitle(cfg.title);
-  for (const f of cfg.fields) {
-    modal.addComponents(new ActionRowBuilder().addComponents(
-      new TextInputBuilder().setCustomId(f.id).setLabel(f.label).setPlaceholder(f.placeholder).setStyle(TextInputStyle.Short).setRequired(true)
-    ));
+  // Special handling for RPS - show choices
+  if (gameType === 'rps') {
+    const modal = new ModalBuilder()
+      .setCustomId(`bet_modal_rps`)
+      .setTitle('✊ Rock Paper Scissors')
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('bet').setLabel('Bet Amount').setPlaceholder('Enter your bet').setStyle(TextInputStyle.Short).setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('choice').setLabel('Your Choice (rock/paper/scissors)').setPlaceholder('rock, paper, or scissors').setStyle(TextInputStyle.Short).setRequired(true)
+        ),
+      );
+    return interaction.showModal(modal);
   }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`bet_modal_${gameType}`)
+    .setTitle(`${game.name} — Place Bet`)
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('bet').setLabel('Bet Amount').setPlaceholder(`Max: ${maxBet} Credits`).setStyle(TextInputStyle.Short).setRequired(true)
+      ),
+    );
+
   await interaction.showModal(modal);
 }
 
-async function handleRouletteBet(interaction) {
-  const amount = parseInt(interaction.fields.getTextInputValue('bet_amount'));
-  const choice = interaction.fields.getTextInputValue('bet_choice').toLowerCase();
-  if (isNaN(amount) || amount <= 0) return replyError(interaction, 'Enter a positive number.');
+async function handleBetModal(interaction, gameType) {
+  const betAmount = parseInt(interaction.fields.getTextInputValue('bet'));
 
-  const result = games.playRoulette(interaction.user.id, interaction.guild.id, interaction.channel.id, choice, choice, amount);
-  if (!result.success) return replyError(interaction, result.reason);
+  if (isNaN(betAmount) || betAmount <= 0) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('❌ Invalid Bet').setDescription('Enter a positive number.').setColor(config.colors.error)],
+      ephemeral: true,
+    });
+  }
 
-  await log(interaction.guild, 'games', result.won ? '🎰 Roulette Win' : '🎰 Roulette Loss', { actor: interaction.user.id, amount });
-  await interaction.reply({ embeds: [
-    new EmbedBuilder()
-      .setTitle(`🎰 Roulette — ${result.result}`)
-      .setDescription(result.won ? `🎉 Won **${formatCredits(result.payout)}**!` : `Lost **${formatCredits(amount)}**.`)
-      .addFields({ name: 'Balance', value: formatCredits(result.balance), inline: true })
-      .setColor(result.won ? config.colors.success : config.colors.error).setTimestamp()
-  ] });
-}
+  const userData = getUser(interaction.user.id, interaction.guild.id);
+  const maxBet = getEffectiveMaxBet(userData.reputation);
 
-async function handleCoinflipBet(interaction) {
-  const amount = parseInt(interaction.fields.getTextInputValue('bet_amount'));
-  const choice = interaction.fields.getTextInputValue('bet_choice').toLowerCase();
-  if (isNaN(amount) || amount <= 0) return replyError(interaction, 'Enter a positive number.');
-  if (!['heads', 'tails'].includes(choice)) return replyError(interaction, 'Choose heads or tails.');
+  if (betAmount > maxBet) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('❌ Bet Too High').setDescription(`Maximum bet is **${formatCredits(maxBet)}** based on your reputation.`).setColor(config.colors.error)],
+      ephemeral: true,
+    });
+  }
 
-  const result = games.playCoinflip(interaction.user.id, interaction.guild.id, interaction.channel.id, choice, amount);
-  if (!result.success) return replyError(interaction, result.reason);
+  if (betAmount > userData.credits) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('❌ Insufficient Funds').setDescription(`You have **${formatCredits(userData.credits)}** but need **${formatCredits(betAmount)}**.`).setColor(config.colors.error)],
+      ephemeral: true,
+    });
+  }
 
-  await log(interaction.guild, 'games', result.won ? '🪙 Coinflip Win' : '🪙 Coinflip Loss', { actor: interaction.user.id, amount });
-  await interaction.reply({ embeds: [
-    new EmbedBuilder()
-      .setTitle(`🪙 ${result.result}`)
-      .setDescription(result.won ? `🎉 Won **${formatCredits(result.payout)}**!` : `Lost **${formatCredits(amount)}**.`)
-      .addFields({ name: 'Balance', value: formatCredits(result.balance), inline: true })
-      .setColor(result.won ? config.colors.success : config.colors.error).setTimestamp()
-  ] });
-}
+  // Execute game
+  try {
+    const games = require('../systems/games');
+    const result = games[`play_${gameType}`](interaction.user.id, interaction.guild.id, betAmount, interaction);
 
-async function handleBlackjackBet(interaction) {
-  const amount = parseInt(interaction.fields.getTextInputValue('bet_amount'));
-  if (isNaN(amount) || amount <= 0) return replyError(interaction, 'Enter a positive number.');
-
-  const result = games.playBlackjack(interaction.user.id, interaction.guild.id, interaction.channel.id, amount);
-  if (!result.success) return replyError(interaction, result.reason);
-
-  const handStr = result.playerHand.map(c => `${c.value}${c.suit}`).join(' ');
-  const dealerStr = result.dealerHand.map(c => `${c.value}${c.suit}`).join(' ');
-
-  await log(interaction.guild, 'games', `🃏 Blackjack: ${result.result}`, { actor: interaction.user.id, amount });
-  await interaction.reply({ embeds: [
-    new EmbedBuilder()
-      .setTitle(`🃏 Blackjack — ${result.result}`)
-      .setDescription(`**You (${result.playerVal}):** ${handStr}\n**Dealer (${result.dealerVal}):** ${dealerStr}`)
-      .addFields({ name: 'Balance', value: formatCredits(result.balance), inline: true })
-      .setColor(result.won ? config.colors.success : config.colors.error).setTimestamp()
-  ] });
-}
-
-async function handleSlotsBet(interaction) {
-  const amount = parseInt(interaction.fields.getTextInputValue('bet_amount'));
-  if (isNaN(amount) || amount <= 0) return replyError(interaction, 'Enter a positive number.');
-
-  const result = games.playSlots(interaction.user.id, interaction.guild.id, interaction.channel.id, amount);
-  if (!result.success) return replyError(interaction, result.reason);
-
-  await log(interaction.guild, 'games', result.won ? '🎰 Slots Win' : '🎰 Slots Loss', { actor: interaction.user.id, amount });
-  await interaction.reply({ embeds: [
-    new EmbedBuilder()
-      .setTitle('🎰 Slots')
-      .setDescription(`${result.reels[0]} | ${result.reels[1]} | ${result.reels[2]}`)
-      .addFields(
-        { name: result.won ? '🎉 Won' : '😔 Lost', value: result.won ? formatCredits(result.payout) : formatCredits(amount), inline: true },
-        { name: 'Balance', value: formatCredits(result.balance), inline: true },
-      )
-      .setColor(result.won ? config.colors.success : config.colors.error).setTimestamp()
-  ] });
-}
-
-async function handleDiceBet(interaction) {
-  const amount = parseInt(interaction.fields.getTextInputValue('bet_amount'));
-  const choice = parseInt(interaction.fields.getTextInputValue('bet_choice'));
-  if (isNaN(amount) || amount <= 0 || isNaN(choice) || choice < 1 || choice > 6) return replyError(interaction, 'Enter valid bet and predict 1-6.');
-
-  const result = games.playDice(interaction.user.id, interaction.guild.id, interaction.channel.id, choice, amount);
-  if (!result.success) return replyError(interaction, result.reason);
-
-  await log(interaction.guild, 'games', result.won ? '🎲 Dice Win' : '🎲 Dice Loss', { actor: interaction.user.id, amount });
-  await interaction.reply({ embeds: [
-    new EmbedBuilder()
-      .setTitle(`🎲 Dice — ${result.roll}`)
-      .setDescription(result.won ? `🎉 Won **${formatCredits(result.payout)}**!` : `Lost **${formatCredits(amount)}**.`)
-      .addFields({ name: 'Balance', value: formatCredits(result.balance), inline: true })
-      .setColor(result.won ? config.colors.success : config.colors.error).setTimestamp()
-  ] });
-}
-
-async function handleHigherLowerBet(interaction) {
-  const amount = parseInt(interaction.fields.getTextInputValue('bet_amount'));
-  const choice = interaction.fields.getTextInputValue('bet_choice').toLowerCase();
-  if (isNaN(amount) || amount <= 0) return replyError(interaction, 'Enter a positive number.');
-  if (!['higher', 'lower', 'equal'].includes(choice)) return replyError(interaction, 'Choose higher, lower, or equal.');
-
-  const result = games.playHigherLower(interaction.user.id, interaction.guild.id, interaction.channel.id, choice, amount);
-  if (!result.success) return replyError(interaction, result.reason);
-
-  await log(interaction.guild, 'games', result.won ? '📊 H/L Win' : '📊 H/L Loss', { actor: interaction.user.id, amount });
-  await interaction.reply({ embeds: [
-    new EmbedBuilder()
-      .setTitle(`📊 ${result.first} → ${result.second}`)
-      .setDescription(result.won ? `🎉 Won **${formatCredits(result.payout)}**!` : `Lost **${formatCredits(amount)}**.`)
-      .addFields({ name: 'Balance', value: formatCredits(result.balance), inline: true })
-      .setColor(result.won ? config.colors.success : config.colors.error).setTimestamp()
-  ] });
-}
-
-async function handleRpsBet(interaction) {
-  const amount = parseInt(interaction.fields.getTextInputValue('bet_amount'));
-  const choice = interaction.fields.getTextInputValue('bet_choice').toLowerCase();
-  if (isNaN(amount) || amount <= 0) return replyError(interaction, 'Enter a positive number.');
-  if (!['rock', 'paper', 'scissors'].includes(choice)) return replyError(interaction, 'Choose rock, paper, or scissors.');
-
-  const result = games.playRps(interaction.user.id, interaction.guild.id, interaction.channel.id, choice, amount);
-  if (!result.success) return replyError(interaction, result.reason);
-
-  const emojis = { rock: '✊', paper: '📄', scissors: '✂️' };
-  const resultText = result.result === 'win' ? '🎉 Won!' : result.result === 'draw' ? '🤝 Draw!' : '😔 Lost!';
-
-  await log(interaction.guild, 'games', `✊ RPS: ${result.result}`, { actor: interaction.user.id, amount });
-  await interaction.reply({ embeds: [
-    new EmbedBuilder()
-      .setTitle('✊ Rock Paper Scissors')
-      .setDescription(`${emojis[choice]} ${choice} vs ${emojis[result.botChoice]} ${result.botChoice}\n\n${resultText}`)
-      .addFields({ name: 'Balance', value: formatCredits(result.balance), inline: true })
-      .setColor(result.won ? config.colors.success : result.result === 'draw' ? config.colors.warning : config.colors.error).setTimestamp()
-  ] });
-}
-
-async function replyError(interaction, msg) {
-  await interaction.reply({ embeds: [
-    new EmbedBuilder().setTitle('❌ Error').setDescription(msg).setColor(config.colors.error)
-  ], ephemeral: true }).catch(() => {});
+    if (!result || !result.success) {
+      return interaction.reply({
+        embeds: [new EmbedBuilder().setTitle('❌ Game Error').setDescription(result?.error || 'Something went wrong.').setColor(config.colors.error)],
+        ephemeral: true,
+      });
+    }
+  } catch (error) {
+    console.error(`[GAME] Error playing ${gameType}:`, error.message);
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('❌ Error').setDescription('Something went wrong. Please try again.').setColor(config.colors.error)],
+      ephemeral: true,
+    });
+  }
 }
