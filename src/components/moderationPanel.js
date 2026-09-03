@@ -240,7 +240,8 @@ async function handleKickModal(interaction) {
   const parts = interaction.customId.split('_');
   const targetId = parts[parts.length - 1];
   const reason = interaction.fields.getTextInputValue('reason');
-  const result = warn(targetId, interaction.user.id, reason, interaction.guild.id);
+  const { kick: kickMod } = require('../systems/moderation');
+  const result = kickMod(targetId, interaction.user.id, reason, interaction.guild.id);
   try { await interaction.guild.members.kick(targetId, reason); } catch (e) {}
   await log(interaction.guild, 'moderation', '👢 Kick', { actor: interaction.user.id, target: targetId, reason, caseId: result.caseId });
   await interaction.reply({ embeds: [
@@ -252,7 +253,8 @@ async function handleBanModal(interaction) {
   const parts = interaction.customId.split('_');
   const targetId = parts[parts.length - 1];
   const reason = interaction.fields.getTextInputValue('reason');
-  const result = warn(targetId, interaction.user.id, reason, interaction.guild.id);
+  const { ban: banMod } = require('../systems/moderation');
+  const result = banMod(targetId, interaction.user.id, reason, { guildId: interaction.guild.id });
   try { await interaction.guild.members.ban(targetId, { reason }); } catch (e) {}
   await log(interaction.guild, 'moderation', '🔨 Ban', { actor: interaction.user.id, target: targetId, reason, caseId: result.caseId });
   await interaction.reply({ embeds: [

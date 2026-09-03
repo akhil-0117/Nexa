@@ -270,7 +270,7 @@ async function handleEconomySelect(interaction) {
         ] });
       } else {
         await interaction.reply({ embeds: [
-          new EmbedBuilder().setTitle('❌ Daily').setDescription(result.reason).setColor(config.colors.error)
+          new EmbedBuilder().setTitle('❌ Daily').setDescription(result.error || 'Already claimed').setColor(config.colors.error)
         ], ephemeral: true });
       }
       break;
@@ -285,7 +285,7 @@ async function handleEconomySelect(interaction) {
         ] });
       } else {
         await interaction.reply({ embeds: [
-          new EmbedBuilder().setTitle('❌ Weekly').setDescription(result.reason).setColor(config.colors.error)
+          new EmbedBuilder().setTitle('❌ Weekly').setDescription(result.error || 'Already claimed').setColor(config.colors.error)
         ], ephemeral: true });
       }
       break;

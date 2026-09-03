@@ -196,8 +196,7 @@ function playRps(userId, guildId, channelId, choice, amount) {
 
   const won = result === 'win';
   const payout = won ? amount * 2 : result === 'draw' ? amount : 0;
-  if (result === 'draw') updateBalance(userId, amount, guildId);
-  const finish = finishGame(gameId, userId, guildId, `${choice} vs ${botChoice}`, won ? userId : '', won ? payout : 0);
+  const finish = finishGame(gameId, userId, guildId, `${choice} vs ${botChoice}`, won ? userId : '', payout);
 
   return { success: true, gameId, botChoice, result, won, payout, balance: getBalance(userId, guildId), transactionId: finish?.txId };
 }
@@ -260,9 +259,8 @@ function playBlackjack(userId, guildId, channelId, amount) {
     payout = amount;
   }
 
-  if (payout > amount || result === 'push') updateBalance(userId, payout, guildId);
   const won = result === 'win' || result === 'blackjack' || result === 'dealer_bust';
-  const finish = finishGame(gameId, userId, guildId, result, won ? userId : '', won ? payout - (result === 'push' ? 0 : amount) : 0);
+  const finish = finishGame(gameId, userId, guildId, result, won ? userId : '', payout);
 
   return {
     success: true, gameId, playerHand, dealerHand, playerVal, dealerVal,

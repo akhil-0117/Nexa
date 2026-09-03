@@ -5,8 +5,17 @@ const { getRepInfo } = require('../systems/reputation');
 const { getInviteStats } = require('../systems/invites');
 const { getAchievements, getAllAchievements } = require('../systems/achievements');
 const { getRankForXp, formatCredits, formatTimestamp, backToMainMenu } = require('../utils/helpers');
-const { getMemberRoleName } = require('../utils/permissions');
+const { getMemberRoleName, getStaffRole } = require('../utils/permissions');
 const config = require('../config');
+
+const PRESIDENT_GIFS = [
+  'https://c.tenor.com/YW9ehEp6X0kAAAAd/tenor.gif',
+  'https://c.tenor.com/Z31b_uCKPVEAAAAd/tenor.gif',
+];
+
+function getPresidentGif() {
+  return PRESIDENT_GIFS[Math.floor(Math.random() * PRESIDENT_GIFS.length)];
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -24,11 +33,15 @@ module.exports = {
       return showEconomyPanel(interaction);
     }
 
+    // Loading screen
+    await interaction.deferReply();
+
     const userData = getUser(user.id, guildId);
     const xpInfo = getXpInfo(user.id, guildId);
     const rank = getRankForXp(userData.total_xp);
     const repInfo = getRepInfo(user.id, guildId);
     const roleName = getMemberRoleName(member);
+    const staffRole = getStaffRole(member);
 
     const embed = new EmbedBuilder()
       .setAuthor({ name: `${user.username}'s Account`, iconURL: user.displayAvatarURL({ dynamic: true }) })
@@ -49,6 +62,11 @@ module.exports = {
       .setFooter({ text: 'Select an option below' })
       .setTimestamp();
 
+    // Add GIF for President/Co-President roles
+    if (staffRole && (staffRole.name === 'PRESIDENT' || staffRole.name === 'CO_PRESIDENT')) {
+      embed.setImage(getPresidentGif());
+    }
+
     const select = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId('account_select')
@@ -65,13 +83,16 @@ module.exports = {
         ])
     );
 
-    await interaction.reply({ embeds: [embed], components: [select] });
+    await interaction.editReply({ embeds: [embed], components: [select] });
   },
 };
 
 async function showEconomyPanel(interaction) {
   const { user, guild } = interaction;
   const guildId = guild.id;
+
+  await interaction.deferReply();
+
   const userData = getUser(user.id, guildId);
   const repInfo = getRepInfo(user.id, guildId);
 
@@ -105,10 +126,5 @@ async function showEconomyPanel(interaction) {
       .from({ type: 2, custom_id: 'nav_account_back', label: '← Back', style: 2 })
   );
 
-  const payload = { embeds: [embed], components: [select, backRow] };
-  if (interaction.replied || interaction.deferred) {
-    await interaction.editReply(payload).catch(() => interaction.followUp({ ...payload, ephemeral: true }));
-  } else {
-    await interaction.reply(payload);
-  }
+  await interaction.editReply({ embeds: [embed], components: [select, backRow] });
 }

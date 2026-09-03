@@ -35,6 +35,19 @@ module.exports = {
           await handleVerifyButton(interaction, client);
           return;
         }
+        if (id === 'verify_captcha_modal') {
+          const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder: AR } = require('discord.js');
+          const modal = new ModalBuilder()
+            .setCustomId('verify_captcha_submit')
+            .setTitle('🔐 Solve Captcha')
+            .addComponents(
+              new AR().addComponents(
+                new TextInputBuilder().setCustomId('captcha_answer').setLabel('Your Answer').setPlaceholder('Enter the number').setStyle(TextInputStyle.Short).setRequired(true)
+              )
+            );
+          await interaction.showModal(modal);
+          return;
+        }
         if (id.startsWith('verify_final_')) {
           await handleVerifyFinal(interaction);
           return;
@@ -172,6 +185,11 @@ module.exports = {
         return;
       }
 
+      if (id === 'verify_captcha_submit') {
+        await handleCaptchaSubmit(interaction);
+        return;
+      }
+
       const handler = client.modals.get(id) || findDynamicHandler(client.modals, id);
       if (handler) {
         try {
@@ -201,7 +219,7 @@ function findDynamicHandler(collection, id) {
 }
 
 async function handleVerifyButton(interaction, client) {
-  const { isVerified, verifyUser } = require('../systems/verification');
+  const { isVerified, canVerify, createCaptchaChallenge } = require('../systems/verification');
   const { log } = require('../systems/logging');
 
   if (isVerified(interaction.user.id, interaction.guild.id)) {
@@ -210,19 +228,29 @@ async function handleVerifyButton(interaction, client) {
     ], ephemeral: true });
   }
 
-  // Confirm step
-  const confirmEmbed = new EmbedBuilder()
-    .setTitle('🔐 Confirm Verification')
-    .setDescription(`**${interaction.user.username}**, you are about to verify.\n\nThis will assign you the **Verified** role and grant full server access.`)
+  // Check if can verify (raid/lockdown)
+  const can = canVerify(interaction.member, interaction.guild.id);
+  if (!can.allowed) {
+    return interaction.reply({ embeds: [
+      new EmbedBuilder().setTitle('❌ Cannot Verify').setDescription(can.reason).setColor(config.colors.error)
+    ], ephemeral: true });
+  }
+
+  // Generate captcha
+  const captcha = createCaptchaChallenge(interaction.user.id);
+
+  const embed = new EmbedBuilder()
+    .setTitle('🔐 Verification Challenge')
+    .setDescription(`**Solve this to verify:**\n\n> ${captcha.question}\n\nClick the button below to enter your answer.`)
     .setColor(config.colors.primary)
     .setTimestamp();
 
-  const confirmRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`verify_final_${interaction.user.id}`).setLabel('✅ Confirm & Verify').setStyle(ButtonStyle.Success),
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`verify_captcha_modal`).setLabel('Enter Answer').setStyle(ButtonStyle.Primary).setEmoji('✏️'),
     new ButtonBuilder().setCustomId('verify_cancel').setLabel('❌ Cancel').setStyle(ButtonStyle.Secondary),
   );
 
-  await interaction.reply({ embeds: [confirmEmbed], components: [confirmRow], ephemeral: true });
+  await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
 }
 
 async function handleVerifyFinal(interaction) {
@@ -244,6 +272,36 @@ async function handleVerifyFinal(interaction) {
   await interaction.update({ embeds: [
     new EmbedBuilder().setTitle('✅ Verified!').setDescription('Your account has been verified. Welcome to the server!').setColor(config.colors.success).setTimestamp()
   ], components: [] });
+}
+
+async function handleCaptchaSubmit(interaction) {
+  const { verifyCaptcha, verifyUser } = require('../systems/verification');
+  const { log } = require('../systems/logging');
+
+  const answer = interaction.fields.getTextInputValue('captcha_answer');
+  const result = verifyCaptcha(interaction.user.id, answer);
+
+  if (result.success) {
+    verifyUser(interaction.user.id, interaction.guild.id);
+
+    const verifiedRoleId = config.roleIds.verified;
+    if (verifiedRoleId) {
+      const role = interaction.guild.roles.cache.get(verifiedRoleId);
+      if (role) {
+        await interaction.member.roles.add(role).catch(() => {});
+      }
+    }
+
+    await log(interaction.guild, 'members', '✅ Verification Complete', { actor: interaction.user.id });
+
+    await interaction.reply({ embeds: [
+      new EmbedBuilder().setTitle('✅ Verified!').setDescription('Captcha correct! Your account has been verified. Welcome to the server!').setColor(config.colors.success).setTimestamp()
+    ] });
+  } else {
+    await interaction.reply({ embeds: [
+      new EmbedBuilder().setTitle('❌ Verification Failed').setDescription(result.reason).setColor(config.colors.error)
+    ], ephemeral: true });
+  }
 }
 
 async function handleVerifyCancel(interaction) {
@@ -385,7 +443,7 @@ async function handleTransferModal(interaction) {
     ] });
   } else {
     await interaction.reply({ embeds: [
-      new EmbedBuilder().setTitle('❌ Transfer Failed').setDescription(result.reason).setColor(config.colors.error)
+      new EmbedBuilder().setTitle('❌ Transfer Failed').setDescription(result.error || 'Transfer failed').setColor(config.colors.error)
     ], ephemeral: true });
   }
 }
