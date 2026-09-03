@@ -1,0 +1,16 @@
+{
+  "name": "nexaverse",
+  "version": "1.0.0",
+  "description": "NEXAVERSE - Complete Discord Bot Ecosystem",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "deploy": "node src/deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "better-sqlite3": "^11.7.0",
+    "dotenv": "^16.4.7"
+  }
+}
