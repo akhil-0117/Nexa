@@ -9,6 +9,35 @@ const config = {
   logLevel: process.env.LOG_LEVEL || 'info',
   dbPath: path.join(__dirname, 'database', 'nexaverse.db'),
 
+  // Verification channel - bot deletes messages and posts verification panel here
+  verificationChannelId: process.env.VERIFICATION_CHANNEL_ID || null,
+
+  // Log channel IDs (all configurable via env)
+  logChannels: {
+    moderation: process.env.LOG_CHANNEL_MODERATION || null,
+    members: process.env.LOG_CHANNEL_MEMBERS || null,
+    messages: process.env.LOG_CHANNEL_MESSAGES || null,
+    economy: process.env.LOG_CHANNEL_ECONOMY || null,
+    games: process.env.LOG_CHANNEL_GAMES || null,
+    giveaways: process.env.LOG_CHANNEL_GIVEAWAYS || null,
+    events: process.env.LOG_CHANNEL_EVENTS || null,
+    tickets: process.env.LOG_CHANNEL_TICKETS || null,
+    reports: process.env.LOG_CHANNEL_REPORTS || null,
+    security: process.env.LOG_CHANNEL_SECURITY || null,
+    staff: process.env.LOG_CHANNEL_STAFF || null,
+  },
+
+  // Role IDs from env (use Discord role IDs)
+  roleIds: {
+    president: process.env.PRESIDENT_ROLE_ID || '',
+    coPresident: process.env.CO_PRESIDENT_ROLE_ID || '',
+    headOfStaff: process.env.HEAD_OF_STAFF_ROLE_ID || '',
+    seniorModerator: process.env.SENIOR_MODERATOR_ROLE_ID || '',
+    moderator: process.env.MODERATOR_ROLE_ID || '',
+    trialModerator: process.env.TRIAL_MODERATOR_ROLE_ID || '',
+    verified: process.env.VERIFIED_ROLE_ID || '',
+  },
+
   // Rank thresholds (XP required for each rank)
   ranks: [
     { name: 'Newcomer', xp: 0, color: '#95a5a6' },
@@ -24,7 +53,7 @@ const config = {
   xp: {
     messageXpMin: 15,
     messageXpMax: 35,
-    messageCooldownMs: 60000, // 1 minute between XP-eligible messages
+    messageCooldownMs: 60000,
     eventXp: 50,
     gameWinXp: 100,
     gameParticipationXp: 25,
@@ -33,9 +62,9 @@ const config = {
     dailyXpBonus: 100,
   },
 
-  // Reputation settings
+  // Reputation settings - everyone starts with 100
   reputation: {
-    initialScore: 50,
+    initialScore: 100,
     maxScore: 100,
     minScore: 0,
     spamDecrease: 2,
@@ -76,14 +105,14 @@ const config = {
     },
   },
 
-  // Staff hierarchy (lower index = lower permission)
+  // Staff hierarchy mapped to role IDs
   staffHierarchy: [
-    { name: 'TRIAL_MODERATOR', level: 1, label: 'Trial Moderator' },
-    { name: 'MODERATOR', level: 2, label: 'Moderator' },
-    { name: 'SENIOR_MODERATOR', level: 3, label: 'Senior Moderator' },
-    { name: 'HEAD_OF_STAFF', level: 4, label: 'Head of Staff' },
-    { name: 'PRESIDENT', level: 5, label: 'President' },
-    { name: 'CO_PRESIDENT', level: 5, label: 'Co-President' },
+    { name: 'TRIAL_MODERATOR', level: 1, label: 'Trial Moderator', roleIdKey: 'trialModerator' },
+    { name: 'MODERATOR', level: 2, label: 'Moderator', roleIdKey: 'moderator' },
+    { name: 'SENIOR_MODERATOR', level: 3, label: 'Senior Moderator', roleIdKey: 'seniorModerator' },
+    { name: 'HEAD_OF_STAFF', level: 4, label: 'Head of Staff', roleIdKey: 'headOfStaff' },
+    { name: 'PRESIDENT', level: 5, label: 'President', roleIdKey: 'president' },
+    { name: 'CO_PRESIDENT', level: 5, label: 'Co-President', roleIdKey: 'coPresident' },
   ],
 
   // Ticket categories
@@ -180,6 +209,7 @@ const config = {
     ticket: '#1abc9c',
     giveaway: '#e91e63',
     event: '#9c27b0',
+    nexaverse: '#00d4ff',
   },
 
   // Notification categories

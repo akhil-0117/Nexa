@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { getUser } = require('../systems/economy');
 const { getRepInfo } = require('../systems/reputation');
 const config = require('../config');
@@ -19,32 +19,34 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setTitle('🎮 NEXAVERSE Games')
       .setColor(config.colors.game)
-      .setDescription(`Welcome to the games arcade, **${user.username}**!\n\nPlace bets and win Credits! Your max bet: **${formatCredits(maxBet)}**`)
+      .setDescription(`Place bets and win Credits!\n\n**Balance:** ${formatCredits(userData.credits)}\n**Max Bet:** ${formatCredits(maxBet)}\n**Reputation:** ${repInfo.score} · ${repInfo.level.label}`)
       .addFields(
-        { name: '🎰 Roulette', value: 'Bet on red, black, green, or a number', inline: true },
+        { name: '🎰 Roulette', value: 'Bet on red, black, green, or a number (up to 35x)', inline: true },
         { name: '🪙 Coinflip', value: 'Heads or tails, 2x payout', inline: true },
         { name: '🃏 Blackjack', value: 'Beat the dealer to 21', inline: true },
         { name: '🎰 Slots', value: 'Spin to win big', inline: true },
-        { name: '🎲 Dice', value: 'Predict the roll', inline: true },
-        { name: '📊 Higher/Lower', value: 'Guess if the next number is higher', inline: true },
-        { name: '✊ Rock Paper Scissors', value: 'Classic RPS duel', inline: true },
+        { name: '🎲 Dice', value: 'Predict the roll (1-6)', inline: true },
+        { name: '📊 Higher/Lower', value: 'Guess the next number', inline: true },
+        { name: '✊ Rock Paper Scissors', value: 'Classic RPS', inline: true },
       )
-      .setFooter({ text: 'NEXAVERSE Games • Max bet is based on reputation and role' })
+      .setFooter({ text: 'NEXAVERSE Games • Select a game to play' })
       .setTimestamp();
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('game_roulette').setLabel('Roulette').setStyle(ButtonStyle.Primary).setEmoji('🎰'),
-      new ButtonBuilder().setCustomId('game_coinflip').setLabel('Coinflip').setStyle(ButtonStyle.Primary).setEmoji('🪙'),
-      new ButtonBuilder().setCustomId('game_blackjack').setLabel('Blackjack').setStyle(ButtonStyle.Primary).setEmoji('🃏'),
-      new ButtonBuilder().setCustomId('game_slots').setLabel('Slots').setStyle(ButtonStyle.Primary).setEmoji('🎰'),
+    const select = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId('game_select')
+        .setPlaceholder('Choose a game...')
+        .addOptions([
+          { label: 'Roulette', value: 'roulette', emoji: '🎰', description: 'Red, black, green, or number' },
+          { label: 'Coinflip', value: 'coinflip', emoji: '🪙', description: 'Heads or tails, 2x' },
+          { label: 'Blackjack', value: 'blackjack', emoji: '🃏', description: 'Beat the dealer' },
+          { label: 'Slots', value: 'slots', emoji: '🎰', description: 'Spin the reels' },
+          { label: 'Dice', value: 'dice', emoji: '🎲', description: 'Predict 1-6' },
+          { label: 'Higher/Lower', value: 'higherlower', emoji: '📊', description: 'Guess higher or lower' },
+          { label: 'Rock Paper Scissors', value: 'rps', emoji: '✊', description: 'Classic RPS' },
+        ])
     );
 
-    const row2 = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('game_dice').setLabel('Dice').setStyle(ButtonStyle.Secondary).setEmoji('🎲'),
-      new ButtonBuilder().setCustomId('game_higherlower').setLabel('Higher/Lower').setStyle(ButtonStyle.Secondary).setEmoji('📊'),
-      new ButtonBuilder().setCustomId('game_rps').setLabel('RPS').setStyle(ButtonStyle.Secondary).setEmoji('✊'),
-    );
-
-    await interaction.reply({ embeds: [embed], components: [row, row2], ephemeral: true });
+    await interaction.reply({ embeds: [embed], components: [select], ephemeral: true });
   },
 };

@@ -1,4 +1,4 @@
-const { Events, EmbedBuilder } = require('discord.js');
+const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getDb } = require('../database/init');
 const { addXp } = require('../systems/xp');
 const { checkMessage, checkSpam } = require('../systems/automod');
@@ -16,6 +16,32 @@ module.exports = {
     const guildId = guild.id;
     const userId = author.id;
     const db = getDb();
+
+    // Verification channel: delete all non-bot messages and re-post panel if needed
+    if (config.verificationChannelId && message.channel.id === config.verificationChannelId) {
+      try {
+        await message.delete().catch(() => {});
+      } catch (e) {}
+
+      // Check if verification panel still exists
+      try {
+        const recentMessages = await message.channel.messages.fetch({ limit: 20 });
+        const hasPanel = recentMessages.some(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title?.includes('Verification'));
+        if (!hasPanel) {
+          const embed = new EmbedBuilder()
+            .setTitle('✅ NEXAVERSE Verification')
+            .setDescription('Welcome! Click the button below to verify your account and gain access to the server.')
+            .setColor(config.colors.success)
+            .setFooter({ text: 'NEXAVERSE Verification System' })
+            .setTimestamp();
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('verify_confirm').setLabel('Verify').setStyle(ButtonStyle.Success).setEmoji('✅')
+          );
+          await message.channel.send({ embeds: [embed], components: [row] });
+        }
+      } catch (e) {}
+      return;
+    }
 
     // Ensure user exists
     db.prepare('INSERT OR IGNORE INTO users (user_id, guild_id, username, created_at) VALUES (?, ?, ?, ?)').run(userId, guildId, author.username, Date.now());
@@ -41,25 +67,25 @@ module.exports = {
           });
         }
       }
-      return; // Don't give XP for automod-violating messages
+      return;
     }
 
     // Check spam
     const spamResult = checkSpam(userId, guildId, content);
     if (spamResult.spamDetected) {
       decreaseReputation(userId, config.reputation.spamDecrease, spamResult.spamType, guildId);
-      await log(guild, 'messages', `🚨 Spam Detected: ${spamResult.spamType}`, {
+      await log(guild, 'messages', `🚨 Spam: ${spamResult.spamType}`, {
         actor: userId,
         reason: `${spamResult.messageCount} messages in window`,
       });
-      return; // Don't give XP for spam
+      return;
     }
 
     // Add XP
     const xpResult = addXp(userId, Math.floor(Math.random() * (config.xp.messageXpMax - config.xp.messageXpMin + 1)) + config.xp.messageXpMin, 'message', guildId);
 
     if (xpResult && xpResult.leveled) {
-      await log(guild, 'members', `⭐ Level Up!`, {
+      await log(guild, 'members', `⭐ Level Up`, {
         actor: userId,
         reason: `Now level ${xpResult.level}`,
       });
@@ -70,7 +96,7 @@ module.exports = {
     if (user) {
       const newAchievements = checkAchievements(userId, user, guildId);
       for (const ach of newAchievements) {
-        await log(guild, 'members', `🏆 Achievement Unlocked: ${ach.icon} ${ach.name}`, {
+        await log(guild, 'members', `🏆 ${ach.icon} ${ach.name}`, {
           actor: userId,
           reason: ach.description,
         });

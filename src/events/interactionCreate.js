@@ -1,4 +1,4 @@
-const { Events, EmbedBuilder } = require('discord.js');
+const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../config');
 
 module.exports = {
@@ -10,7 +10,6 @@ module.exports = {
       if (!command) return;
 
       try {
-        // Handle subcommand modules
         if (command.subcommands) {
           const subName = interaction.options.getSubcommand(false);
           if (subName && command.subcommands[subName]) {
@@ -22,7 +21,7 @@ module.exports = {
       } catch (error) {
         console.error(`[CMD] Error executing ${interaction.commandName}:`, error.message);
         const reply = {
-          embeds: [new EmbedBuilder().setTitle('❌ Error').setDescription('An error occurred while executing this command.').setColor(config.colors.error)],
+          embeds: [new EmbedBuilder().setTitle('❌ Error').setDescription('An error occurred.').setColor(config.colors.error)],
           ephemeral: true,
         };
         if (interaction.replied || interaction.deferred) {
@@ -36,29 +35,20 @@ module.exports = {
 
     // Handle buttons
     if (interaction.isButton()) {
-      const id = interaction.customId;
-
-      // Route to component handler
-      const handler = client.buttons.get(id) || findDynamicHandler(client.buttons, id);
-      if (handler) {
-        try {
+      try {
+        const handler = client.buttons.get(interaction.customId) || findDynamicHandler(client.buttons, interaction.customId);
+        if (handler) {
           await handler(interaction, client);
-        } catch (error) {
-          console.error(`[BTN] Error with ${id}:`, error.message);
+        } else {
+          // Unknown button
           if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ embeds: [
-              new EmbedBuilder().setTitle('❌ Error').setDescription('An error occurred.').setColor(config.colors.error)
+              new EmbedBuilder().setTitle('⚠️ Expired').setDescription('This button is no longer active. Use the command again.').setColor(config.colors.warning)
             ], ephemeral: true }).catch(() => {});
           }
         }
-        return;
-      }
-
-      // Route by prefix
-      try {
-        await routeButton(interaction, client, id);
       } catch (error) {
-        console.error(`[BTN] Error routing ${id}:`, error.message);
+        console.error(`[BTN] Error with ${interaction.customId}:`, error.message);
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({ embeds: [
             new EmbedBuilder().setTitle('❌ Error').setDescription('An error occurred.').setColor(config.colors.error)
@@ -72,20 +62,40 @@ module.exports = {
     if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu() || interaction.isRoleSelectMenu()) {
       const id = interaction.customId;
 
-      const handler = client.selectMenus.get(id) || findDynamicHandler(client.selectMenus, id);
-      if (handler) {
-        try {
+      // Registered component handlers first
+      try {
+        const handler = client.selectMenus.get(id) || findDynamicHandler(client.selectMenus, id);
+        if (handler) {
           await handler(interaction, client);
-        } catch (error) {
-          console.error(`[SELECT] Error with ${id}:`, error.message);
+          return;
+        }
+      } catch (error) {
+        console.error(`[SELECT] Error with ${id}:`, error.message);
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ embeds: [
+            new EmbedBuilder().setTitle('❌ Error').setDescription('An error occurred.').setColor(config.colors.error)
+          ], ephemeral: true }).catch(() => {});
         }
         return;
       }
 
+      // Built-in select menus
       try {
-        await routeSelect(interaction, client, id);
+        if (id === 'staff_panel_select') { await handleStaffPanelSelect(interaction); return; }
+        if (id === 'help_category_select') { await handleHelpCategorySelect(interaction); return; }
+        if (id === 'config_select') { await handleConfigSelect(interaction); return; }
+        if (id === 'shop_select_item') { await handleShopSelect(interaction); return; }
+
+        await interaction.reply({ embeds: [
+          new EmbedBuilder().setTitle('⚠️ Expired').setDescription('This menu is no longer active. Use the command again.').setColor(config.colors.warning)
+        ], ephemeral: true }).catch(() => {});
       } catch (error) {
         console.error(`[SELECT] Error routing ${id}:`, error.message);
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ embeds: [
+            new EmbedBuilder().setTitle('❌ Error').setDescription('An error occurred.').setColor(config.colors.error)
+          ], ephemeral: true }).catch(() => {});
+        }
       }
       return;
     }
@@ -93,12 +103,31 @@ module.exports = {
     // Handle modals
     if (interaction.isModalSubmit()) {
       const id = interaction.customId;
+
+      // Security: Transfer modal only for the owner
+      if (id.startsWith('transfer_modal_')) {
+        const modalOwnerId = id.split('_')[2];
+        if (modalOwnerId !== interaction.user.id) {
+          return interaction.reply({ embeds: [
+            new EmbedBuilder().setTitle('🔒 Not Your Panel').setDescription('This is not your transfer panel.').setColor(config.colors.error)
+          ], ephemeral: true });
+        }
+        // Handle transfer
+        await handleTransferModal(interaction);
+        return;
+      }
+
       const handler = client.modals.get(id) || findDynamicHandler(client.modals, id);
       if (handler) {
         try {
           await handler(interaction, client);
         } catch (error) {
           console.error(`[MODAL] Error with ${id}:`, error.message);
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ embeds: [
+              new EmbedBuilder().setTitle('❌ Error').setDescription('An error occurred.').setColor(config.colors.error)
+            ], ephemeral: true }).catch(() => {});
+          }
         }
       }
       return;
@@ -116,229 +145,116 @@ function findDynamicHandler(collection, id) {
   return null;
 }
 
-async function routeButton(interaction, client, id) {
-  const { handleAccountButton } = require('../components/accountPanel');
-  const { handleEconomyButton } = require('../components/economyPanel');
-  const { handleGameButton } = require('../components/gamesPanel');
-  const { handleModButton } = require('../components/moderationPanel');
-  const { handleTicketButton } = require('../components/ticketPanel');
-
-  if (id.startsWith('account_')) return handleAccountButton(interaction, client);
-  if (id.startsWith('economy_')) return handleEconomyButton(interaction, client);
-  if (id.startsWith('game_')) return handleGameButton(interaction, client);
-  if (id.startsWith('mod_')) return handleModButton(interaction, client);
-  if (id.startsWith('verify_')) return handleVerifyButton(interaction, client);
-  if (id.startsWith('ticket_')) return handleTicketButton(interaction, client);
-  if (id.startsWith('poll_vote_')) return handlePollVote(interaction, client);
-
-  await interaction.reply({ embeds: [
-    new EmbedBuilder().setTitle('⚠️ Unknown Action').setDescription('This button is no longer active.').setColor(config.colors.warning)
-  ], ephemeral: true });
-}
-
-async function routeSelect(interaction, client, id) {
-  if (id === 'staff_panel_select') return handleStaffPanelSelect(interaction, client);
-  if (id === 'help_category_select') return handleHelpCategorySelect(interaction, client);
-  if (id === 'config_select') return handleConfigSelect(interaction, client);
-  if (id === 'shop_select_item') return handleShopSelect(interaction, client);
-  if (id === 'ticket_create_select') return handleTicketCreateSelect(interaction, client);
-}
-
-async function handleVerifyButton(interaction, client) {
-  if (interaction.customId === 'verify_confirm') {
-    const { verifyUser } = require('../systems/verification');
-    const { log } = require('../systems/logging');
-
-    verifyUser(interaction.user.id, interaction.guild.id);
-
-    // Try to assign verified role
-    const verifiedRoleName = 'Verified';
-    const role = interaction.guild.roles.cache.find(r => r.name === verifiedRoleName);
-    if (role) {
-      await interaction.member.roles.add(role).catch(() => {});
-    }
-
-    await log(interaction.guild, 'members', '✅ Verification Complete', {
-      actor: interaction.user.id,
-    });
-
-    await interaction.reply({ embeds: [
-      new EmbedBuilder().setTitle('✅ Verified!').setDescription('Your account has been verified. Welcome to the server!').setColor(config.colors.success)
-    ], ephemeral: true });
-  }
-}
-
-async function handlePollVote(interaction, client) {
-  const { votePoll } = require('../systems/polls');
-  const parts = interaction.customId.split('_');
-  const pollId = parts[2];
-  const optionIndex = parseInt(parts[3]);
-
-  const result = votePoll(pollId, interaction.user.id, optionIndex);
-  if (result.success) {
-    await interaction.reply({ embeds: [
-      new EmbedBuilder().setTitle('✅ Vote Recorded').setDescription(`You voted for option ${optionIndex + 1}.`).setColor(config.colors.success)
-    ], ephemeral: true });
-  } else {
-    await interaction.reply({ embeds: [
-      new EmbedBuilder().setTitle('❌ Error').setDescription(result.reason).setColor(config.colors.error)
-    ], ephemeral: true });
-  }
-}
-
-async function handleStaffPanelSelect(interaction, client) {
-  const { isStaff } = require('../utils/permissions');
+async function handleStaffPanelSelect(interaction) {
+  const { isStaff, getStaffRole } = require('../utils/permissions');
   if (!isStaff(interaction.member)) {
     return interaction.reply({ embeds: [
-      new EmbedBuilder().setTitle('❌ Access Denied').setColor(config.colors.error)
+      new EmbedBuilder().setTitle('🔒 Staff Only').setColor(config.colors.error)
     ], ephemeral: true });
   }
 
   const category = interaction.values[0];
-  const { EmbedBuilder: EB, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-
   const panels = {
-    moderation: {
-      title: '🛡️ Moderation Tools',
-      description: 'Select a moderation action.',
-      buttons: [
-        { id: 'mod_warn_', label: 'Warn', style: ButtonStyle.Danger, emoji: '⚠️' },
-        { id: 'mod_timeout_', label: 'Timeout', style: ButtonStyle.Danger, emoji: '🔇' },
-        { id: 'mod_kick_', label: 'Kick', style: ButtonStyle.Danger, emoji: '👢' },
-        { id: 'mod_ban_', label: 'Ban', style: ButtonStyle.Danger, emoji: '🔨' },
-      ],
-    },
-    cases: { title: '📋 Case Management', description: 'View and manage moderation cases.' },
-    reports: { title: '🚨 Reports', description: 'View pending reports.' },
-    tickets: { title: '🎫 Tickets', description: 'Manage support tickets.' },
-    security: { title: '🔒 Security', description: 'Monitor security status.' },
-    economy: { title: '💰 Economy', description: 'Manage economy settings.' },
-    applications: { title: '📋 Applications', description: 'Review staff and partnership applications.' },
-    logs: { title: '📜 Logs', description: 'View system logs.' },
+    moderation: { title: '🛡️ Moderation', description: 'Use `/moderation` to access moderation tools.' },
+    cases: { title: '📋 Cases', description: 'Use `/moderation` and select View Cases.' },
+    reports: { title: '🚨 Reports', description: 'Report management coming soon.' },
+    tickets: { title: '🎫 Tickets', description: 'Ticket management coming soon.' },
+    security: { title: '🔒 Security', description: 'Security controls coming soon.' },
+    economy: { title: '💰 Economy', description: 'Economy management coming soon.' },
+    applications: { title: '📋 Applications', description: 'Application management coming soon.' },
+    logs: { title: '📜 Logs', description: 'Log viewer coming soon.' },
   };
 
-  const panel = panels[category];
-  const embed = new EB().setTitle(panel.title).setDescription(panel.description).setColor(config.colors.staff).setTimestamp();
-
-  if (panel.buttons) {
-    const row = new ActionRowBuilder().addComponents(
-      ...panel.buttons.map(b => new ButtonBuilder().setCustomId(b.id).setLabel(b.label).setStyle(b.style).setEmoji(b.emoji))
-    );
-    await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-  } else {
-    await interaction.reply({ embeds: [embed], ephemeral: true });
-  }
-}
-
-async function handleHelpCategorySelect(interaction, client) {
-  const { EmbedBuilder: EB } = require('discord.js');
-  const category = interaction.values[0];
-
-  const categories = {
-    general: {
-      title: '📖 General Commands',
-      fields: [
-        '/account - Your account panel',
-        '/economy - Economy panel',
-        '/games - Games panel',
-        '/stats - Server statistics',
-        '/shop - Browse the shop',
-        '/poll - Create a poll',
-      ],
-    },
-    moderation: {
-      title: '🛡️ Moderation Commands',
-      fields: [
-        '/moderation - Moderation panel (Staff)',
-        '/staff - Staff panel (Staff)',
-      ],
-    },
-    staff: {
-      title: '👨‍💼 Staff Commands',
-      fields: ['/staff - Staff panel', '/moderation - Moderation tools', '/config - Server configuration (Admin)'],
-    },
-    social: {
-      title: '🤝 Social Commands',
-      fields: ['/account - View profile and achievements', '/stats - Server statistics', '/poll - Create polls'],
-    },
-    support: {
-      title: '🎫 Support Commands',
-      fields: ['/ticket - Create support ticket', '/report - Report an issue', '/appeal - Appeal a punishment'],
-    },
-    security: {
-      title: '🔒 Security Commands',
-      fields: ['/verify - Verify your account', '/moderation - Security tools (Staff)'],
-    },
-    utility: {
-      title: '⚙️ Utility Commands',
-      fields: ['/ping - Bot latency', '/avatar - User avatar', '/userinfo - User info', '/serverinfo - Server info', '/botinfo - Bot info', '/remind - Set reminder'],
-    },
-  };
-
-  const cat = categories[category];
-  const embed = new EB()
-    .setTitle(cat.title)
-    .setDescription(cat.fields.map(f => `\`${f}\``).join('\n'))
-    .setColor(config.colors.info)
-    .setTimestamp();
-
+  const panel = panels[category] || { title: category, description: 'Coming soon.' };
+  const embed = new EmbedBuilder().setTitle(panel.title).setDescription(panel.description).setColor(config.colors.staff).setTimestamp();
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
-async function handleConfigSelect(interaction, client) {
+async function handleHelpCategorySelect(interaction) {
+  const category = interaction.values[0];
+  const categories = {
+    general: { title: '📖 General', fields: ['/account — Profile & wallet\n/games — Games arcade\n/shop — Credit shop\n/stats — Server stats'] },
+    moderation: { title: '🛡️ Moderation', fields: ['/moderation — Mod panel (Staff)\n/staff — Staff panel (Staff)'] },
+    staff: { title: '👨‍💼 Staff', fields: ['/staff — Staff panel\n/moderation — Mod tools\n/config — Server config (Admin)'] },
+    utility: { title: '⚙️ Utility', fields: ['/ping — Bot latency\n/botinfo — Bot info\n/serverinfo — Server info\n/verify — Verify account\n/poll — Create polls'] },
+    social: { title: '🤝 Social', fields: ['/account — Achievements, invites\n/stats — Server statistics'] },
+  };
+  const cat = categories[category] || { title: category, fields: ['No commands listed.'] };
+  const embed = new EmbedBuilder().setTitle(cat.title).setDescription(cat.fields.join('\n')).setColor(config.colors.info).setTimestamp();
+  await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+async function handleConfigSelect(interaction) {
   const { isAdmin } = require('../utils/permissions');
   if (!isAdmin(interaction.member)) {
     return interaction.reply({ embeds: [
-      new EmbedBuilder().setTitle('❌ Access Denied').setColor(config.colors.error)
+      new EmbedBuilder().setTitle('🔒 Admin Only').setColor(config.colors.error)
     ], ephemeral: true });
   }
-
   const category = interaction.values[0];
-  const { EmbedBuilder: EB, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-
-  const embed = new EB()
-    .setTitle(`⚙️ Configure: ${category}`)
-    .setDescription(`Use the buttons below to configure ${category} settings.`)
-    .setColor(config.colors.staff)
-    .setTimestamp();
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`config_edit_${category}`).setLabel('Edit Settings').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`config_view_${category}`).setLabel('View Current').setStyle(ButtonStyle.Secondary),
-  );
-
-  await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  const embed = new EmbedBuilder().setTitle(`⚙️ ${category}`).setDescription('Configuration panel coming soon.').setColor(config.colors.staff).setTimestamp();
+  await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
-async function handleShopSelect(interaction, client) {
+async function handleShopSelect(interaction) {
   const { purchaseItem } = require('../systems/shop');
   const itemId = interaction.values[0];
-
   const result = purchaseItem(interaction.user.id, itemId, interaction.guild.id);
   if (result.success) {
-    const { EmbedBuilder: EB } = require('discord.js');
     await interaction.reply({ embeds: [
-      new EB().setTitle('✅ Purchase Successful').setDescription(`You purchased **${result.item.name}**!`).setColor(config.colors.success)
+      new EmbedBuilder().setTitle('✅ Purchased').setDescription(`You bought **${result.item.name}**!`).setColor(config.colors.success)
     ], ephemeral: true });
   } else {
     await interaction.reply({ embeds: [
-      new EmbedBuilder().setTitle('❌ Purchase Failed').setDescription(result.reason).setColor(config.colors.error)
+      new EmbedBuilder().setTitle('❌ Failed').setDescription(result.reason).setColor(config.colors.error)
     ], ephemeral: true });
   }
 }
 
-async function handleTicketCreateSelect(interaction, client) {
-  const { createTicket } = require('../systems/tickets');
-  const category = interaction.values[0];
+async function handleTransferModal(interaction) {
+  const { getUser, getBalance, transfer } = require('../systems/economy');
+  const { log } = require('../systems/logging');
 
-  const result = createTicket(interaction.guild.id, interaction.user.id, category, 'Created from ticket panel');
-  const catInfo = config.ticketCategories.find(c => c.id === category);
+  const recipientId = interaction.fields.getTextInputValue('recipient');
+  const amount = parseInt(interaction.fields.getTextInputValue('amount'));
 
-  await interaction.reply({ embeds: [
-    new EmbedBuilder()
-      .setTitle(`🎫 Ticket Created - ${result.id}`)
-      .setDescription(`Category: ${catInfo?.label || category}\n\nA staff member will assist you shortly.`)
-      .setColor(config.colors.ticket)
-      .setTimestamp()
-  ], ephemeral: true });
+  if (isNaN(amount) || amount <= 0) {
+    return interaction.reply({ embeds: [
+      new EmbedBuilder().setTitle('❌ Invalid Amount').setDescription('Enter a positive number.').setColor(config.colors.error)
+    ], ephemeral: true });
+  }
+
+  if (recipientId === interaction.user.id) {
+    return interaction.reply({ embeds: [
+      new EmbedBuilder().setTitle('❌ Self-Transfer').setDescription('Cannot transfer to yourself.').setColor(config.colors.error)
+    ], ephemeral: true });
+  }
+
+  const balance = getBalance(interaction.user.id, interaction.guild.id);
+  if (balance < amount) {
+    return interaction.reply({ embeds: [
+      new EmbedBuilder().setTitle('❌ Insufficient Funds').setDescription(`Balance: ${balance} Credits`).setColor(config.colors.error)
+    ], ephemeral: true });
+  }
+
+  // Ensure recipient exists in DB
+  const { getDb } = require('../database/init');
+  const db = getDb();
+  db.prepare('INSERT OR IGNORE INTO users (user_id, guild_id, username, created_at) VALUES (?, ?, ?, ?)').run(recipientId, interaction.guild.id, 'Unknown', Date.now());
+
+  const result = transfer(interaction.user.id, recipientId, amount, interaction.guild.id);
+  if (result.success) {
+    await log(interaction.guild, 'economy', '💸 Transfer', { actor: interaction.user.id, target: recipientId, amount, reason: result.transactionId });
+    await interaction.reply({ embeds: [
+      new EmbedBuilder()
+        .setTitle('💸 Transfer Complete')
+        .setDescription(`Sent **${amount} Credits** to <@${recipientId}>\nFee: ${result.fee || 0} Credits\nTransaction: ${result.transactionId}`)
+        .addFields({ name: 'Your Balance', value: `${result.senderBalance} Credits`, inline: true })
+        .setColor(config.colors.success).setTimestamp()
+    ], ephemeral: true });
+  } else {
+    await interaction.reply({ embeds: [
+      new EmbedBuilder().setTitle('❌ Transfer Failed').setDescription(result.reason).setColor(config.colors.error)
+    ], ephemeral: true });
+  }
 }

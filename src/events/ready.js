@@ -1,17 +1,57 @@
-const { Events, ActivityType } = require('discord.js');
+const { Events, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../config');
 
 module.exports = {
   name: Events.ClientReady,
   once: true,
-  execute(client) {
+  async execute(client) {
     console.log(`[NEXAVERSE] Logged in as ${client.user.tag}`);
-    console.log(`[NEXAVERSE] Serving ${client.guilds.cache.size} server(s) with ${client.users.cache.size} user(s)`);
+    console.log(`[NEXAVERSE] Serving ${client.guilds.cache.size} server(s)`);
     console.log(`[NEXAVERSE] ${client.commands.size} commands loaded`);
 
     client.user.setPresence({
       activities: [{ name: 'NEXAVERSE | /help', type: ActivityType.Watching }],
       status: 'online',
     });
+
+    // Post verification panel in the verification channel
+    if (config.verificationChannelId) {
+      for (const [, guild] of client.guilds.cache) {
+        try {
+          const channel = await guild.channels.fetch(config.verificationChannelId);
+          if (!channel) continue;
+
+          // Fetch recent messages to check if panel already exists
+          const messages = await channel.messages.fetch({ limit: 20 });
+          const existingPanel = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title?.includes('Verification'));
+
+          if (!existingPanel) {
+            await sendVerificationPanel(channel);
+            console.log(`[NEXAVERSE] Posted verification panel in #${channel.name}`);
+          }
+        } catch (err) {
+          console.error(`[NEXAVERSE] Failed to post verification panel:`, err.message);
+        }
+      }
+    }
   },
 };
+
+async function sendVerificationPanel(channel) {
+  const embed = new EmbedBuilder()
+    .setTitle('✅ NEXAVERSE Verification')
+    .setDescription('Welcome! Click the button below to verify your account and gain access to the server.')
+    .setColor(config.colors.success)
+    .setFooter({ text: 'NEXAVERSE Verification System' })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('verify_confirm')
+      .setLabel('Verify')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('✅')
+  );
+
+  await channel.send({ embeds: [embed], components: [row] });
+}
