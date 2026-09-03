@@ -2,7 +2,7 @@ const { getDb } = require('../database/init');
 const config = require('../config');
 const { generateGameId } = require('../utils/helpers');
 const { getUser, getBalance, updateBalance, createTransaction } = require('./economy');
-const { getReputationLevel } = require('./reputation');
+const { getReputationLevel } = require('../utils/helpers');
 const { addXp } = require('./xp');
 
 const activeGames = new Map();

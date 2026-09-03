@@ -2,6 +2,7 @@ const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = r
 const { getDb } = require('../database/init');
 const { addXp } = require('../systems/xp');
 const { checkMessage, checkSpam } = require('../systems/automod');
+const { checkBadWords } = require('../systems/badwords');
 const { decreaseReputation } = require('../systems/reputation');
 const { log } = require('../systems/logging');
 const { checkAchievements } = require('../systems/achievements');
@@ -58,6 +59,28 @@ module.exports = {
       weekly_messages = weekly_messages + 1, monthly_messages = monthly_messages + 1,
       last_message_time = ?, updated_at = ? WHERE user_id = ? AND guild_id = ?`)
       .run(Date.now(), Date.now(), userId, guildId);
+
+    // Check bad words
+    const badWord = checkBadWords(content);
+    if (badWord) {
+      await message.delete().catch(() => {});
+      decreaseReputation(userId, config.reputation.warnDecrease, badWord.type, guildId);
+      const { warn } = require('../systems/moderation');
+      const result = warn(userId, client.user.id, `Auto-warn: ${badWord.type} detected`, guildId);
+      await log(guild, 'moderation', `🤖 Auto-Warn: ${badWord.type}`, {
+        actor: userId,
+        reason: `Word/pattern detected: ${badWord.word || badWord.type}`,
+        caseId: result.caseId,
+      });
+      try {
+        await author.send({ embeds: [
+          new EmbedBuilder().setTitle('⚠️ Warning').setDescription(`Your message was deleted and you have been auto-warned for using inappropriate language.
+Case: ${result.caseId}
+Reputation: -${result.reputationDecrease}`).setColor(config.colors.warning)
+        ] }).catch(() => {});
+      } catch (e) {}
+      return;
+    }
 
     // Check automod
     const violations = checkMessage(message, client);

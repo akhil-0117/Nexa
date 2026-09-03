@@ -13,7 +13,8 @@ module.exports = {
       .setDescription('Select a category below to see available commands.')
       .addFields(
         { name: '🎮 Games', value: '`/games` — Games arcade', inline: true },
-        { name: '📋 Account', value: '`/account` — Profile, wallet, stats', inline: true },
+        { name: '📋 Account', value: '`/account` — Profile & stats', inline: true },
+        { name: '💰 Wallet', value: '`/wallet` — Wallet & transfers', inline: true },
         { name: '🛡️ Moderation', value: '`/moderation` — Staff mod tools', inline: true },
         { name: '👨‍💼 Staff', value: '`/staff` — Staff panel', inline: true },
         { name: '📊 Stats', value: '`/stats` — Server statistics', inline: true },
