@@ -200,6 +200,62 @@ function msToDuration(ms) {
   return parts.join(' ');
 }
 
+async function backToMainMenu(interaction) {
+  const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+  const { getUser } = require('../systems/economy');
+  const { getXpInfo } = require('../systems/xp');
+  const { getRepInfo } = require('../systems/reputation');
+  const { getMemberRoleName } = require('../utils/permissions');
+  const { getAchievements, getAllAchievements } = require('../systems/achievements');
+  const config = require('../config');
+
+  const user = interaction.user;
+  const guildId = interaction.guild.id;
+  const member = interaction.member;
+  const userData = getUser(user.id, guildId);
+  const xpInfo = getXpInfo(user.id, guildId);
+  const rank = getRankForXp(userData.total_xp);
+  const repInfo = getRepInfo(user.id, guildId);
+  const roleName = getMemberRoleName(member);
+
+  const embed = new EmbedBuilder()
+    .setAuthor({ name: `${user.username}'s Account`, iconURL: user.displayAvatarURL({ dynamic: true }) })
+    .setTitle('📋 NEXAVERSE Account')
+    .setColor(rank.color)
+    .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+    .addFields(
+      { name: '⭐ Level', value: `${xpInfo.level}`, inline: true },
+      { name: '🎖️ Rank', value: rank.name, inline: true },
+      { name: '✨ XP', value: `${xpInfo.xp}/${xpInfo.xpNeeded}`, inline: true },
+      { name: '💰 Credits', value: formatCredits(userData.credits), inline: true },
+      { name: '🤝 Reputation', value: `${repInfo.score} · ${repInfo.level.label}`, inline: true },
+      { name: '🏷️ Role', value: roleName, inline: true },
+      { name: '💬 Messages', value: `${userData.messages}`, inline: true },
+      { name: '🎮 Games Won', value: `${userData.games_won}/${userData.games_played}`, inline: true },
+      { name: '🏆 Achievements', value: `${getAchievements(user.id, guildId).length}/${getAllAchievements().length}`, inline: true },
+    )
+    .setFooter({ text: 'Select an option below' })
+    .setTimestamp();
+
+  const select = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('account_select')
+      .setPlaceholder('Choose an option...')
+      .addOptions([
+        { label: 'Profile', value: 'profile', emoji: '👤', description: 'View full profile' },
+        { label: 'Wallet', value: 'wallet', emoji: '💰', description: 'Check balance & transfer' },
+        { label: 'Economy', value: 'economy', emoji: '📊', description: 'Daily, weekly, shop' },
+        { label: 'Activity', value: 'activity', emoji: '📈', description: 'Message stats & streak' },
+        { label: 'Reputation', value: 'reputation', emoji: '🤝', description: 'Trust score & restrictions' },
+        { label: 'Achievements', value: 'achievements', emoji: '🏆', description: 'Unlocked achievements' },
+        { label: 'Transactions', value: 'transactions', emoji: '💳', description: 'Recent transactions' },
+        { label: 'Invites', value: 'invites', emoji: '📨', description: 'Invite statistics' },
+      ])
+  );
+
+  await interaction.update({ embeds: [embed], components: [select] });
+}
+
 module.exports = {
   generateId, generateCaseId, generateTransactionId, generateGameId,
   generateGiveawayId, generateTicketId, generateReportId, generateAppealId,
@@ -210,4 +266,5 @@ module.exports = {
   createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed,
   paginateItems, getPaginationButtons,
   parseDuration, msToDuration,
+  backToMainMenu,
 };

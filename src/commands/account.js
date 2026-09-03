@@ -1,10 +1,10 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
-const { getUser, getBalance, getTransactions, claimDaily, claimWeekly } = require('../systems/economy');
+const { getUser } = require('../systems/economy');
 const { getXpInfo } = require('../systems/xp');
 const { getRepInfo } = require('../systems/reputation');
 const { getInviteStats } = require('../systems/invites');
 const { getAchievements, getAllAchievements } = require('../systems/achievements');
-const { getRankForXp, formatCredits, formatDateTime, formatTimestamp } = require('../utils/helpers');
+const { getRankForXp, formatCredits, formatTimestamp, backToMainMenu } = require('../utils/helpers');
 const { getMemberRoleName } = require('../utils/permissions');
 const config = require('../config');
 
@@ -20,7 +20,6 @@ module.exports = {
     const { user, guild, member } = interaction;
     const guildId = guild.id;
 
-    // /account economy subcommand
     if (interaction.options.getSubcommand(false) === 'economy') {
       return showEconomyPanel(interaction);
     }
@@ -47,7 +46,7 @@ module.exports = {
         { name: '🎮 Games Won', value: `${userData.games_won}/${userData.games_played}`, inline: true },
         { name: '🏆 Achievements', value: `${getAchievements(user.id, guildId).length}/${getAllAchievements().length}`, inline: true },
       )
-      .setFooter({ text: 'NEXAVERSE • Select an option below' })
+      .setFooter({ text: 'Select an option below' })
       .setTimestamp();
 
     const select = new ActionRowBuilder().addComponents(
@@ -66,7 +65,7 @@ module.exports = {
         ])
     );
 
-    await interaction.reply({ embeds: [embed], components: [select], ephemeral: true });
+    await interaction.reply({ embeds: [embed], components: [select] });
   },
 };
 
@@ -79,13 +78,12 @@ async function showEconomyPanel(interaction) {
   const embed = new EmbedBuilder()
     .setTitle('💰 Economy Panel')
     .setColor(config.colors.economy)
-    .setDescription(`Balance: **${formatCredits(userData.credits)}**\nReputation: **${repInfo.score}** · ${repInfo.level.label}`)
+    .setDescription(`**Balance:** ${formatCredits(userData.credits)}\n**Reputation:** ${repInfo.score} · ${repInfo.level.label}`)
     .addFields(
       { name: '📅 Daily', value: formatCredits(config.economy.dailyReward), inline: true },
       { name: '📆 Weekly', value: formatCredits(config.economy.weeklyReward), inline: true },
-      { name: '💸 Transfer Fee', value: `${config.economy.transferFeePercent}%`, inline: true },
+      { name: '💸 Fee', value: `${config.economy.transferFeePercent}%`, inline: true },
     )
-    .setFooter({ text: 'NEXAVERSE Economy' })
     .setTimestamp();
 
   const select = new ActionRowBuilder().addComponents(
@@ -93,14 +91,24 @@ async function showEconomyPanel(interaction) {
       .setCustomId('economy_select')
       .setPlaceholder('Choose an action...')
       .addOptions([
-        { label: 'Claim Daily', value: 'daily', emoji: '📅', description: 'Claim your daily reward' },
-        { label: 'Claim Weekly', value: 'weekly', emoji: '📆', description: 'Claim your weekly reward' },
-        { label: 'Transfer Credits', value: 'transfer', emoji: '💸', description: 'Send credits to another user' },
-        { label: 'Shop', value: 'shop', emoji: '🛒', description: 'Browse the credit shop' },
-        { label: 'Transactions', value: 'transactions', emoji: '💳', description: 'Recent transactions' },
-        { label: 'Leaderboard', value: 'leaderboard', emoji: '🏆', description: 'Top earners' },
+        { label: 'Claim Daily', value: 'daily', emoji: '📅' },
+        { label: 'Claim Weekly', value: 'weekly', emoji: '📆' },
+        { label: 'Transfer', value: 'transfer', emoji: '💸' },
+        { label: 'Shop', value: 'shop', emoji: '🛒' },
+        { label: 'Transactions', value: 'transactions', emoji: '💳' },
+        { label: 'Leaderboard', value: 'leaderboard', emoji: '🏆' },
       ])
   );
 
-  await interaction.reply({ embeds: [embed], components: [select], ephemeral: true });
+  const backRow = new ActionRowBuilder().addComponents(
+    require('discord.js').ButtonBuilder
+      .from({ type: 2, custom_id: 'nav_account_back', label: '← Back', style: 2 })
+  );
+
+  const payload = { embeds: [embed], components: [select, backRow] };
+  if (interaction.replied || interaction.deferred) {
+    await interaction.editReply(payload).catch(() => interaction.followUp({ ...payload, ephemeral: true }));
+  } else {
+    await interaction.reply(payload);
+  }
 }

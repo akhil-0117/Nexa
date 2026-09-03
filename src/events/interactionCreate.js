@@ -1,4 +1,4 @@
-const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const config = require('../config');
 
 module.exports = {
@@ -8,15 +8,7 @@ module.exports = {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (!command) return;
-
       try {
-        if (command.subcommands) {
-          const subName = interaction.options.getSubcommand(false);
-          if (subName && command.subcommands[subName]) {
-            await command.subcommands[subName].execute(interaction, client);
-            return;
-          }
-        }
         await command.execute(interaction, client);
       } catch (error) {
         console.error(`[CMD] Error executing ${interaction.commandName}:`, error.message);
@@ -36,14 +28,89 @@ module.exports = {
     // Handle buttons
     if (interaction.isButton()) {
       try {
-        const handler = client.buttons.get(interaction.customId) || findDynamicHandler(client.buttons, interaction.customId);
+        const id = interaction.customId;
+
+        // Verify buttons
+        if (id === 'verify_confirm') {
+          await handleVerifyButton(interaction, client);
+          return;
+        }
+        if (id.startsWith('verify_final_')) {
+          await handleVerifyFinal(interaction);
+          return;
+        }
+        if (id === 'verify_cancel') {
+          await handleVerifyCancel(interaction);
+          return;
+        }
+
+        // Back button for moderation user select
+        if (id === 'mod_back_to_select') {
+          await handleModBackToSelect(interaction);
+          return;
+        }
+
+        // Games back button
+        if (id === 'nav_games_back') {
+          // Re-show games panel
+          const { getUser } = require('../systems/economy');
+          const { getRepInfo } = require('../systems/reputation');
+          const { formatCredits, getEffectiveMaxBet } = require('../utils/helpers');
+
+          const userData = getUser(interaction.user.id, interaction.guild.id);
+          const repInfo = getRepInfo(interaction.user.id, interaction.guild.id);
+          const maxBet = getEffectiveMaxBet(userData.reputation);
+
+          const embed = new EmbedBuilder()
+            .setTitle('🎮 NEXAVERSE Games')
+            .setColor(config.colors.game)
+            .setDescription(`**Balance:** ${formatCredits(userData.credits)}\n**Max Bet:** ${formatCredits(maxBet)}\n**Reputation:** ${repInfo.score} · ${repInfo.level.label}`)
+            .addFields(
+              { name: '🎰 Roulette', value: 'Red, black, green, or number (up to 35x)', inline: true },
+              { name: '🪙 Coinflip', value: 'Heads or tails, 2x payout', inline: true },
+              { name: '🃏 Blackjack', value: 'Beat the dealer to 21', inline: true },
+              { name: '🎰 Slots', value: 'Spin to win big', inline: true },
+              { name: '🎲 Dice', value: 'Predict 1-6', inline: true },
+              { name: '📊 Higher/Lower', value: 'Guess the next number', inline: true },
+              { name: '✊ RPS', value: 'Classic Rock Paper Scissors', inline: true },
+            )
+            .setFooter({ text: 'Select a game below' })
+            .setTimestamp();
+
+          const select = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId('game_select')
+              .setPlaceholder('Choose a game...')
+              .addOptions([
+                { label: 'Roulette', value: 'roulette', emoji: '🎰' },
+                { label: 'Coinflip', value: 'coinflip', emoji: '🪙' },
+                { label: 'Blackjack', value: 'blackjack', emoji: '🃏' },
+                { label: 'Slots', value: 'slots', emoji: '🎰' },
+                { label: 'Dice', value: 'dice', emoji: '🎲' },
+                { label: 'Higher/Lower', value: 'higherlower', emoji: '📊' },
+                { label: 'RPS', value: 'rps', emoji: '✊' },
+              ])
+          );
+
+          await interaction.update({ embeds: [embed], components: [select] });
+          return;
+        }
+
+        // Account back button
+        if (id === 'nav_account_back') {
+          const { backToMainMenu } = require('../utils/helpers');
+          await backToMainMenu(interaction);
+          return;
+        }
+
+        // Registered component handlers
+        const handler = client.buttons.get(id) || findDynamicHandler(client.buttons, id);
         if (handler) {
           await handler(interaction, client);
         } else {
-          // Unknown button
           if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ embeds: [
-              new EmbedBuilder().setTitle('⚠️ Expired').setDescription('This button is no longer active. Use the command again.').setColor(config.colors.warning)
+              new EmbedBuilder().setTitle('⚠️ Expired').setDescription('This interaction is no longer active. Use the command again.').setColor(config.colors.warning)
             ], ephemeral: true }).catch(() => {});
           }
         }
@@ -62,25 +129,15 @@ module.exports = {
     if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu() || interaction.isRoleSelectMenu()) {
       const id = interaction.customId;
 
-      // Registered component handlers first
       try {
+        // Registered component handlers first
         const handler = client.selectMenus.get(id) || findDynamicHandler(client.selectMenus, id);
         if (handler) {
           await handler(interaction, client);
           return;
         }
-      } catch (error) {
-        console.error(`[SELECT] Error with ${id}:`, error.message);
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ embeds: [
-            new EmbedBuilder().setTitle('❌ Error').setDescription('An error occurred.').setColor(config.colors.error)
-          ], ephemeral: true }).catch(() => {});
-        }
-        return;
-      }
 
-      // Built-in select menus
-      try {
+        // Built-in select menus
         if (id === 'staff_panel_select') { await handleStaffPanelSelect(interaction); return; }
         if (id === 'help_category_select') { await handleHelpCategorySelect(interaction); return; }
         if (id === 'config_select') { await handleConfigSelect(interaction); return; }
@@ -90,7 +147,7 @@ module.exports = {
           new EmbedBuilder().setTitle('⚠️ Expired').setDescription('This menu is no longer active. Use the command again.').setColor(config.colors.warning)
         ], ephemeral: true }).catch(() => {});
       } catch (error) {
-        console.error(`[SELECT] Error routing ${id}:`, error.message);
+        console.error(`[SELECT] Error with ${id}:`, error.message);
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({ embeds: [
             new EmbedBuilder().setTitle('❌ Error').setDescription('An error occurred.').setColor(config.colors.error)
@@ -104,7 +161,6 @@ module.exports = {
     if (interaction.isModalSubmit()) {
       const id = interaction.customId;
 
-      // Security: Transfer modal only for the owner
       if (id.startsWith('transfer_modal_')) {
         const modalOwnerId = id.split('_')[2];
         if (modalOwnerId !== interaction.user.id) {
@@ -112,7 +168,6 @@ module.exports = {
             new EmbedBuilder().setTitle('🔒 Not Your Panel').setDescription('This is not your transfer panel.').setColor(config.colors.error)
           ], ephemeral: true });
         }
-        // Handle transfer
         await handleTransferModal(interaction);
         return;
       }
@@ -145,8 +200,85 @@ function findDynamicHandler(collection, id) {
   return null;
 }
 
-async function handleStaffPanelSelect(interaction) {
+async function handleVerifyButton(interaction, client) {
+  const { isVerified, verifyUser } = require('../systems/verification');
+  const { log } = require('../systems/logging');
+
+  if (isVerified(interaction.user.id, interaction.guild.id)) {
+    return interaction.reply({ embeds: [
+      new EmbedBuilder().setTitle('✅ Already Verified').setDescription('Your account is already verified.').setColor(config.colors.success)
+    ], ephemeral: true });
+  }
+
+  // Confirm step
+  const confirmEmbed = new EmbedBuilder()
+    .setTitle('🔐 Confirm Verification')
+    .setDescription(`**${interaction.user.username}**, you are about to verify.\n\nThis will assign you the **Verified** role and grant full server access.`)
+    .setColor(config.colors.primary)
+    .setTimestamp();
+
+  const confirmRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`verify_final_${interaction.user.id}`).setLabel('✅ Confirm & Verify').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('verify_cancel').setLabel('❌ Cancel').setStyle(ButtonStyle.Secondary),
+  );
+
+  await interaction.reply({ embeds: [confirmEmbed], components: [confirmRow], ephemeral: true });
+}
+
+async function handleVerifyFinal(interaction) {
+  const { verifyUser } = require('../systems/verification');
+  const { log } = require('../systems/logging');
+
+  verifyUser(interaction.user.id, interaction.guild.id);
+
+  const verifiedRoleId = config.roleIds.verified;
+  if (verifiedRoleId) {
+    const role = interaction.guild.roles.cache.get(verifiedRoleId);
+    if (role) {
+      await interaction.member.roles.add(role).catch(() => {});
+    }
+  }
+
+  await log(interaction.guild, 'members', '✅ Verification Complete', { actor: interaction.user.id });
+
+  await interaction.update({ embeds: [
+    new EmbedBuilder().setTitle('✅ Verified!').setDescription('Your account has been verified. Welcome to the server!').setColor(config.colors.success).setTimestamp()
+  ], components: [] });
+}
+
+async function handleVerifyCancel(interaction) {
+  await interaction.update({ embeds: [
+    new EmbedBuilder().setTitle('❌ Verification Cancelled').setDescription('You can verify later using `/verify`.').setColor(config.colors.warning)
+  ], components: [] });
+}
+
+async function handleModBackToSelect(interaction) {
   const { isStaff, getStaffRole } = require('../utils/permissions');
+  if (!isStaff(interaction.member)) {
+    return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🔒 Staff Only').setColor(config.colors.error)], ephemeral: true });
+  }
+
+  const staffRole = getStaffRole(interaction.member);
+
+  const embed = new EmbedBuilder()
+    .setTitle('🛡️ Moderation Panel')
+    .setColor(config.colors.moderation)
+    .setDescription(`**Your Level:** ${staffRole?.label || 'Staff'}\n\nSelect a member below to moderate.`)
+    .setTimestamp();
+
+  const userSelect = new ActionRowBuilder().addComponents(
+    new (require('discord.js').UserSelectMenuBuilder)()
+      .setCustomId('mod_user_select')
+      .setPlaceholder('Select a member to moderate...')
+      .setMinValues(1)
+      .setMaxValues(1)
+  );
+
+  await interaction.update({ embeds: [embed], components: [userSelect] });
+}
+
+async function handleStaffPanelSelect(interaction) {
+  const { isStaff } = require('../utils/permissions');
   if (!isStaff(interaction.member)) {
     return interaction.reply({ embeds: [
       new EmbedBuilder().setTitle('🔒 Staff Only').setColor(config.colors.error)
@@ -167,21 +299,21 @@ async function handleStaffPanelSelect(interaction) {
 
   const panel = panels[category] || { title: category, description: 'Coming soon.' };
   const embed = new EmbedBuilder().setTitle(panel.title).setDescription(panel.description).setColor(config.colors.staff).setTimestamp();
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed] });
 }
 
 async function handleHelpCategorySelect(interaction) {
   const category = interaction.values[0];
   const categories = {
-    general: { title: '📖 General', fields: ['/account — Profile & wallet\n/games — Games arcade\n/shop — Credit shop\n/stats — Server stats'] },
-    moderation: { title: '🛡️ Moderation', fields: ['/moderation — Mod panel (Staff)\n/staff — Staff panel (Staff)'] },
-    staff: { title: '👨‍💼 Staff', fields: ['/staff — Staff panel\n/moderation — Mod tools\n/config — Server config (Admin)'] },
-    utility: { title: '⚙️ Utility', fields: ['/ping — Bot latency\n/botinfo — Bot info\n/serverinfo — Server info\n/verify — Verify account\n/poll — Create polls'] },
-    social: { title: '🤝 Social', fields: ['/account — Achievements, invites\n/stats — Server statistics'] },
+    general: { title: '📖 General', desc: '`/account` — Profile & wallet\n`/games` — Games arcade\n`/shop` — Credit shop\n`/stats` — Server stats' },
+    moderation: { title: '🛡️ Moderation', desc: '`/moderation` — Mod panel (Staff)\n`/staff` — Staff panel (Staff)' },
+    staff: { title: '👨‍💼 Staff', desc: '`/staff` — Staff panel\n`/moderation` — Mod tools\n`/config` — Server config (Admin)' },
+    utility: { title: '⚙️ Utility', desc: '`/ping` — Bot latency\n`/botinfo` — Bot info\n`/serverinfo` — Server info\n`/verify` — Verify account\n`/poll` — Create polls' },
+    social: { title: '🤝 Social', desc: '`/account` — Achievements, invites\n`/stats` — Server statistics' },
   };
-  const cat = categories[category] || { title: category, fields: ['No commands listed.'] };
-  const embed = new EmbedBuilder().setTitle(cat.title).setDescription(cat.fields.join('\n')).setColor(config.colors.info).setTimestamp();
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  const cat = categories[category] || { title: category, desc: 'No commands listed.' };
+  const embed = new EmbedBuilder().setTitle(cat.title).setDescription(cat.desc).setColor(config.colors.info).setTimestamp();
+  await interaction.reply({ embeds: [embed] });
 }
 
 async function handleConfigSelect(interaction) {
@@ -193,7 +325,7 @@ async function handleConfigSelect(interaction) {
   }
   const category = interaction.values[0];
   const embed = new EmbedBuilder().setTitle(`⚙️ ${category}`).setDescription('Configuration panel coming soon.').setColor(config.colors.staff).setTimestamp();
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed] });
 }
 
 async function handleShopSelect(interaction) {
@@ -203,7 +335,7 @@ async function handleShopSelect(interaction) {
   if (result.success) {
     await interaction.reply({ embeds: [
       new EmbedBuilder().setTitle('✅ Purchased').setDescription(`You bought **${result.item.name}**!`).setColor(config.colors.success)
-    ], ephemeral: true });
+    ] });
   } else {
     await interaction.reply({ embeds: [
       new EmbedBuilder().setTitle('❌ Failed').setDescription(result.reason).setColor(config.colors.error)
@@ -212,7 +344,8 @@ async function handleShopSelect(interaction) {
 }
 
 async function handleTransferModal(interaction) {
-  const { getUser, getBalance, transfer } = require('../systems/economy');
+  const { getBalance, transfer } = require('../systems/economy');
+  const { getDb } = require('../database/init');
   const { log } = require('../systems/logging');
 
   const recipientId = interaction.fields.getTextInputValue('recipient');
@@ -237,8 +370,6 @@ async function handleTransferModal(interaction) {
     ], ephemeral: true });
   }
 
-  // Ensure recipient exists in DB
-  const { getDb } = require('../database/init');
   const db = getDb();
   db.prepare('INSERT OR IGNORE INTO users (user_id, guild_id, username, created_at) VALUES (?, ?, ?, ?)').run(recipientId, interaction.guild.id, 'Unknown', Date.now());
 
@@ -251,7 +382,7 @@ async function handleTransferModal(interaction) {
         .setDescription(`Sent **${amount} Credits** to <@${recipientId}>\nFee: ${result.fee || 0} Credits\nTransaction: ${result.transactionId}`)
         .addFields({ name: 'Your Balance', value: `${result.senderBalance} Credits`, inline: true })
         .setColor(config.colors.success).setTimestamp()
-    ], ephemeral: true });
+    ] });
   } else {
     await interaction.reply({ embeds: [
       new EmbedBuilder().setTitle('❌ Transfer Failed').setDescription(result.reason).setColor(config.colors.error)

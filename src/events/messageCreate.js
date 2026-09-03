@@ -23,19 +23,26 @@ module.exports = {
         await message.delete().catch(() => {});
       } catch (e) {}
 
-      // Check if verification panel still exists
       try {
         const recentMessages = await message.channel.messages.fetch({ limit: 20 });
         const hasPanel = recentMessages.some(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title?.includes('Verification'));
         if (!hasPanel) {
           const embed = new EmbedBuilder()
-            .setTitle('✅ NEXAVERSE Verification')
-            .setDescription('Welcome! Click the button below to verify your account and gain access to the server.')
-            .setColor(config.colors.success)
+            .setTitle('🔐 NEXAVERSE Verification')
+            .setDescription(
+              '**Welcome to the server!**\n\n' +
+              'To gain full access, you need to verify your account.\n\n' +
+              '**How it works:**\n' +
+              '1. Click the **Verify** button below\n' +
+              '2. Confirm in the popup that appears\n' +
+              '3. You will receive the **Verified** role\n\n' +
+              '*This confirms you are a real member and not a bot.*'
+            )
+            .setColor(config.colors.primary)
             .setFooter({ text: 'NEXAVERSE Verification System' })
             .setTimestamp();
           const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('verify_confirm').setLabel('Verify').setStyle(ButtonStyle.Success).setEmoji('✅')
+            new ButtonBuilder().setCustomId('verify_confirm').setLabel('Begin Verification').setStyle(ButtonStyle.Success).setEmoji('🔐')
           );
           await message.channel.send({ embeds: [embed], components: [row] });
         }

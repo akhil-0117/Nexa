@@ -1,10 +1,10 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { getUser, getBalance, getTransactions, claimDaily, claimWeekly } = require('../systems/economy');
 const { getXpInfo } = require('../systems/xp');
 const { getRepInfo } = require('../systems/reputation');
 const { getInviteStats, getTopInviters } = require('../systems/invites');
 const { getAchievements, getAllAchievements } = require('../systems/achievements');
-const { paginateItems, formatCredits, formatDateTime, formatTimestamp } = require('../utils/helpers');
+const { formatCredits, formatTimestamp, backToMainMenu } = require('../utils/helpers');
 const { getMemberRoleName } = require('../utils/permissions');
 const { log } = require('../systems/logging');
 const config = require('../config');
@@ -15,13 +15,18 @@ module.exports = {
     economy_select: handleEconomySelect,
     wallet_action_select: handleWalletAction,
   },
+  buttons: {
+    nav_account_back: (interaction) => backToMainMenu(interaction),
+  },
 };
 
-// Store interaction owners for security: interactionId -> userId
-const interactionOwners = new Map();
+function backRow(customId = 'nav_account_back') {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(customId).setLabel('← Back').setStyle(ButtonStyle.Secondary)
+  );
+}
 
 async function handleAccountSelect(interaction) {
-  // Security: only the person who opened the panel can use it
   const value = interaction.values[0];
   const { user, guild, member } = interaction;
   const guildId = guild.id;
@@ -49,12 +54,10 @@ async function handleAccountSelect(interaction) {
           { name: '💬 Messages', value: `${userData.messages}`, inline: true },
           { name: '🎮 Win Rate', value: userData.games_played > 0 ? `${Math.floor((userData.games_won / userData.games_played) * 100)}%` : 'N/A', inline: true },
           { name: '📨 Invites', value: `${userData.valid_invites}`, inline: true },
-          { name: '🔥 Streak', value: `${userData.streak_days} days`, inline: true },
         )
-        .setFooter({ text: 'Profile • NEXAVERSE' })
         .setTimestamp();
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.update({ embeds: [embed], components: [backRow()] });
       break;
     }
 
@@ -74,7 +77,6 @@ async function handleAccountSelect(interaction) {
           { name: 'Sent', value: `${userData.transfers_sent}x`, inline: true },
           { name: 'Received', value: `${userData.transfers_received}x`, inline: true },
         )
-        .setFooter({ text: 'Use /account economy to claim rewards' })
         .setTimestamp();
 
       const select = new ActionRowBuilder().addComponents(
@@ -82,23 +84,22 @@ async function handleAccountSelect(interaction) {
           .setCustomId('wallet_action_select')
           .setPlaceholder('Choose an action...')
           .addOptions([
-            { label: 'Transfer Credits', value: 'transfer', emoji: '💸', description: 'Send credits to someone' },
+            { label: 'Transfer Credits', value: 'transfer', emoji: '💸' },
           ])
       );
 
-      await interaction.reply({ embeds: [embed], components: [select], ephemeral: true });
+      await interaction.update({ embeds: [embed], components: [select, backRow()] });
       break;
     }
 
     case 'economy': {
-      // Redirect to economy subcommand
       const userData = getUser(user.id, guildId);
       const repInfo = getRepInfo(user.id, guildId);
 
       const embed = new EmbedBuilder()
         .setTitle('💰 Economy Panel')
         .setColor(config.colors.economy)
-        .setDescription(`Balance: **${formatCredits(userData.credits)}**\nReputation: **${repInfo.score}** · ${repInfo.level.label}`)
+        .setDescription(`**Balance:** ${formatCredits(userData.credits)}\n**Reputation:** ${repInfo.score} · ${repInfo.level.label}`)
         .addFields(
           { name: '📅 Daily', value: formatCredits(config.economy.dailyReward), inline: true },
           { name: '📆 Weekly', value: formatCredits(config.economy.weeklyReward), inline: true },
@@ -111,16 +112,16 @@ async function handleAccountSelect(interaction) {
           .setCustomId('economy_select')
           .setPlaceholder('Choose an action...')
           .addOptions([
-            { label: 'Claim Daily', value: 'daily', emoji: '📅', description: 'Claim daily reward' },
-            { label: 'Claim Weekly', value: 'weekly', emoji: '📆', description: 'Claim weekly reward' },
-            { label: 'Transfer', value: 'transfer', emoji: '💸', description: 'Send credits' },
-            { label: 'Shop', value: 'shop', emoji: '🛒', description: 'Credit shop' },
-            { label: 'Transactions', value: 'transactions', emoji: '💳', description: 'Recent activity' },
-            { label: 'Leaderboard', value: 'leaderboard', emoji: '🏆', description: 'Top earners' },
+            { label: 'Claim Daily', value: 'daily', emoji: '📅' },
+            { label: 'Claim Weekly', value: 'weekly', emoji: '📆' },
+            { label: 'Transfer', value: 'transfer', emoji: '💸' },
+            { label: 'Shop', value: 'shop', emoji: '🛒' },
+            { label: 'Transactions', value: 'transactions', emoji: '💳' },
+            { label: 'Leaderboard', value: 'leaderboard', emoji: '🏆' },
           ])
       );
 
-      await interaction.reply({ embeds: [embed], components: [select], ephemeral: true });
+      await interaction.update({ embeds: [embed], components: [select, backRow()] });
       break;
     }
 
@@ -141,7 +142,7 @@ async function handleAccountSelect(interaction) {
         )
         .setTimestamp();
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.update({ embeds: [embed], components: [backRow()] });
       break;
     }
 
@@ -163,7 +164,7 @@ async function handleAccountSelect(interaction) {
         embed.addFields({ name: '✅ Status', value: 'No restrictions — full access' });
       }
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.update({ embeds: [embed], components: [backRow()] });
       break;
     }
 
@@ -183,7 +184,7 @@ async function handleAccountSelect(interaction) {
         .addFields(fields)
         .setTimestamp();
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.update({ embeds: [embed], components: [backRow()] });
       break;
     }
 
@@ -191,9 +192,9 @@ async function handleAccountSelect(interaction) {
       const transactions = getTransactions(user.id, 10);
 
       if (transactions.length === 0) {
-        return interaction.reply({ embeds: [
+        return interaction.update({ embeds: [
           new EmbedBuilder().setTitle('💳 Transactions').setDescription('No transactions yet.').setColor(config.colors.info)
-        ], ephemeral: true });
+        ], components: [backRow()] });
       }
 
       const fields = transactions.map(t => ({
@@ -208,7 +209,7 @@ async function handleAccountSelect(interaction) {
         .addFields(fields)
         .setTimestamp();
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.update({ embeds: [embed], components: [backRow()] });
       break;
     }
 
@@ -231,7 +232,7 @@ async function handleAccountSelect(interaction) {
         embed.addFields({ name: '🏆 Top Inviters', value: leaderboard });
       }
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.update({ embeds: [embed], components: [backRow()] });
       break;
     }
   }
@@ -266,7 +267,7 @@ async function handleEconomySelect(interaction) {
         await log(guild, 'economy', '📅 Daily Claimed', { actor: user.id, amount: result.reward });
         await interaction.reply({ embeds: [
           new EmbedBuilder().setTitle('📅 Daily Reward').setDescription(`Claimed **${formatCredits(result.reward)}**!\nBalance: **${formatCredits(result.balance)}**`).setColor(config.colors.success).setTimestamp()
-        ], ephemeral: true });
+        ] });
       } else {
         await interaction.reply({ embeds: [
           new EmbedBuilder().setTitle('❌ Daily').setDescription(result.reason).setColor(config.colors.error)
@@ -281,7 +282,7 @@ async function handleEconomySelect(interaction) {
         await log(guild, 'economy', '📆 Weekly Claimed', { actor: user.id, amount: result.reward });
         await interaction.reply({ embeds: [
           new EmbedBuilder().setTitle('📆 Weekly Reward').setDescription(`Claimed **${formatCredits(result.reward)}**!\nBalance: **${formatCredits(result.balance)}**`).setColor(config.colors.success).setTimestamp()
-        ], ephemeral: true });
+        ] });
       } else {
         await interaction.reply({ embeds: [
           new EmbedBuilder().setTitle('❌ Weekly').setDescription(result.reason).setColor(config.colors.error)
@@ -313,7 +314,7 @@ async function handleEconomySelect(interaction) {
       if (items.length === 0) {
         return interaction.reply({ embeds: [
           new EmbedBuilder().setTitle('🛒 Shop').setDescription('No items available yet.').setColor(config.colors.info)
-        ], ephemeral: true });
+        ] });
       }
 
       const select = new ActionRowBuilder().addComponents(
@@ -322,15 +323,14 @@ async function handleEconomySelect(interaction) {
           .setPlaceholder('Select an item...')
           .addOptions(items.slice(0, 25).map(item => ({
             label: `${item.name} — ${item.price} Credits`,
-            value: item.id,
-            emoji: item.emoji,
+            value: item.id, emoji: item.emoji,
             description: item.description?.substring(0, 100) || 'Purchase',
           })))
       );
 
       await interaction.reply({ embeds: [
         new EmbedBuilder().setTitle('🛒 Shop').setDescription('Select an item to purchase.').setColor(config.colors.economy)
-      ], components: [select], ephemeral: true });
+      ], components: [select] });
       break;
     }
 
@@ -339,7 +339,7 @@ async function handleEconomySelect(interaction) {
       if (transactions.length === 0) {
         return interaction.reply({ embeds: [
           new EmbedBuilder().setTitle('💳 Transactions').setDescription('No transactions yet.').setColor(config.colors.info)
-        ], ephemeral: true });
+        ] });
       }
 
       const fields = transactions.map(t => ({
@@ -348,7 +348,7 @@ async function handleEconomySelect(interaction) {
 
       await interaction.reply({ embeds: [
         new EmbedBuilder().setTitle('💳 Recent Transactions').setColor(config.colors.economy).addFields(fields).setTimestamp()
-      ], ephemeral: true });
+      ] });
       break;
     }
 
@@ -360,14 +360,14 @@ async function handleEconomySelect(interaction) {
       if (top.length === 0) {
         return interaction.reply({ embeds: [
           new EmbedBuilder().setTitle('🏆 Leaderboard').setDescription('No data yet.').setColor(config.colors.info)
-        ], ephemeral: true });
+        ] });
       }
 
       const leaderboard = top.map((u, i) => `**${i + 1}.** <@${u.user_id}> — ${formatCredits(u.credits)} (Lv.${u.level})`).join('\n');
 
       await interaction.reply({ embeds: [
         new EmbedBuilder().setTitle('🏆 Economy Leaderboard').setDescription(leaderboard).setColor(config.colors.economy).setTimestamp()
-      ], ephemeral: true });
+      ] });
       break;
     }
   }

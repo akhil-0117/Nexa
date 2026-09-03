@@ -11,20 +11,25 @@ module.exports = {
     if (isVerified(interaction.user.id, interaction.guild.id)) {
       return interaction.reply({
         embeds: [new EmbedBuilder().setTitle('✅ Already Verified').setDescription('Your account is already verified.').setColor(config.colors.success)],
-        ephemeral: true,
       });
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('✅ Verify Your Account')
-      .setDescription('Click the button below to verify and gain full server access.')
+      .setTitle('🔐 NEXAVERSE Verification')
+      .setDescription('To gain full access to the server, complete verification below.\n\nThis confirms you are a real member and not a bot.')
       .setColor(config.colors.primary)
+      .addFields(
+        { name: '📋 Step 1', value: 'Click the **Verify** button below' },
+        { name: '✅ Step 2', value: 'Confirm in the popup that appears' },
+        { name: '🎉 Done', value: 'You will receive the Verified role automatically' },
+      )
+      .setFooter({ text: 'NEXAVERSE Verification System' })
       .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('verify_confirm').setLabel('Verify Now').setStyle(ButtonStyle.Success).setEmoji('✅')
+      new ButtonBuilder().setCustomId('verify_confirm').setLabel('Begin Verification').setStyle(ButtonStyle.Success).setEmoji('🔐')
     );
 
-    await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    await interaction.reply({ embeds: [embed], components: [row] });
   },
 };

@@ -25,7 +25,7 @@ module.exports = {
         { name: 'ℹ️ Bot Info', value: '`/botinfo` — Bot information', inline: true },
         { name: '🌐 Server Info', value: '`/serverinfo` — Server details', inline: true },
       )
-      .setFooter({ text: 'NEXAVERSE • All panels are private to you' })
+      .setFooter({ text: 'NEXAVERSE' })
       .setTimestamp();
 
     const select = new ActionRowBuilder().addComponents(
@@ -33,14 +33,14 @@ module.exports = {
         .setCustomId('help_category_select')
         .setPlaceholder('Select a category...')
         .addOptions([
-          { label: 'General', value: 'general', emoji: '📖', description: 'Account, games, shop' },
-          { label: 'Moderation', value: 'moderation', emoji: '🛡️', description: 'Moderation tools' },
-          { label: 'Staff', value: 'staff', emoji: '👨‍💼', description: 'Staff panel & config' },
-          { label: 'Utility', value: 'utility', emoji: '⚙️', description: 'Info, ping, verify' },
-          { label: 'Social', value: 'social', emoji: '🤝', description: 'Achievements, invites' },
+          { label: 'General', value: 'general', emoji: '📖' },
+          { label: 'Moderation', value: 'moderation', emoji: '🛡️' },
+          { label: 'Staff', value: 'staff', emoji: '👨‍💼' },
+          { label: 'Utility', value: 'utility', emoji: '⚙️' },
+          { label: 'Social', value: 'social', emoji: '🤝' },
         ])
     );
 
-    await interaction.reply({ embeds: [embed], components: [select], ephemeral: true });
+    await interaction.reply({ embeds: [embed], components: [select] });
   },
 };

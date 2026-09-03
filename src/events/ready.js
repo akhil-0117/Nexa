@@ -21,7 +21,6 @@ module.exports = {
           const channel = await guild.channels.fetch(config.verificationChannelId);
           if (!channel) continue;
 
-          // Fetch recent messages to check if panel already exists
           const messages = await channel.messages.fetch({ limit: 20 });
           const existingPanel = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0 && m.embeds[0].title?.includes('Verification'));
 
@@ -39,18 +38,26 @@ module.exports = {
 
 async function sendVerificationPanel(channel) {
   const embed = new EmbedBuilder()
-    .setTitle('✅ NEXAVERSE Verification')
-    .setDescription('Welcome! Click the button below to verify your account and gain access to the server.')
-    .setColor(config.colors.success)
+    .setTitle('🔐 NEXAVERSE Verification')
+    .setDescription(
+      '**Welcome to the server!**\n\n' +
+      'To gain full access, you need to verify your account.\n\n' +
+      '**How it works:**\n' +
+      '1. Click the **Verify** button below\n' +
+      '2. Confirm in the popup that appears\n' +
+      '3. You will receive the **Verified** role\n\n' +
+      '*This confirms you are a real member and not a bot.*'
+    )
+    .setColor(config.colors.primary)
     .setFooter({ text: 'NEXAVERSE Verification System' })
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('verify_confirm')
-      .setLabel('Verify')
+      .setLabel('Begin Verification')
       .setStyle(ButtonStyle.Success)
-      .setEmoji('✅')
+      .setEmoji('🔐')
   );
 
   await channel.send({ embeds: [embed], components: [row] });

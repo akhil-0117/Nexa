@@ -19,17 +19,17 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setTitle('🎮 NEXAVERSE Games')
       .setColor(config.colors.game)
-      .setDescription(`Place bets and win Credits!\n\n**Balance:** ${formatCredits(userData.credits)}\n**Max Bet:** ${formatCredits(maxBet)}\n**Reputation:** ${repInfo.score} · ${repInfo.level.label}`)
+      .setDescription(`**Balance:** ${formatCredits(userData.credits)}\n**Max Bet:** ${formatCredits(maxBet)}\n**Reputation:** ${repInfo.score} · ${repInfo.level.label}`)
       .addFields(
-        { name: '🎰 Roulette', value: 'Bet on red, black, green, or a number (up to 35x)', inline: true },
+        { name: '🎰 Roulette', value: 'Red, black, green, or number (up to 35x)', inline: true },
         { name: '🪙 Coinflip', value: 'Heads or tails, 2x payout', inline: true },
         { name: '🃏 Blackjack', value: 'Beat the dealer to 21', inline: true },
         { name: '🎰 Slots', value: 'Spin to win big', inline: true },
-        { name: '🎲 Dice', value: 'Predict the roll (1-6)', inline: true },
+        { name: '🎲 Dice', value: 'Predict 1-6', inline: true },
         { name: '📊 Higher/Lower', value: 'Guess the next number', inline: true },
-        { name: '✊ Rock Paper Scissors', value: 'Classic RPS', inline: true },
+        { name: '✊ RPS', value: 'Classic Rock Paper Scissors', inline: true },
       )
-      .setFooter({ text: 'NEXAVERSE Games • Select a game to play' })
+      .setFooter({ text: 'Select a game below' })
       .setTimestamp();
 
     const select = new ActionRowBuilder().addComponents(
@@ -37,16 +37,16 @@ module.exports = {
         .setCustomId('game_select')
         .setPlaceholder('Choose a game...')
         .addOptions([
-          { label: 'Roulette', value: 'roulette', emoji: '🎰', description: 'Red, black, green, or number' },
-          { label: 'Coinflip', value: 'coinflip', emoji: '🪙', description: 'Heads or tails, 2x' },
-          { label: 'Blackjack', value: 'blackjack', emoji: '🃏', description: 'Beat the dealer' },
-          { label: 'Slots', value: 'slots', emoji: '🎰', description: 'Spin the reels' },
-          { label: 'Dice', value: 'dice', emoji: '🎲', description: 'Predict 1-6' },
-          { label: 'Higher/Lower', value: 'higherlower', emoji: '📊', description: 'Guess higher or lower' },
-          { label: 'Rock Paper Scissors', value: 'rps', emoji: '✊', description: 'Classic RPS' },
+          { label: 'Roulette', value: 'roulette', emoji: '🎰' },
+          { label: 'Coinflip', value: 'coinflip', emoji: '🪙' },
+          { label: 'Blackjack', value: 'blackjack', emoji: '🃏' },
+          { label: 'Slots', value: 'slots', emoji: '🎰' },
+          { label: 'Dice', value: 'dice', emoji: '🎲' },
+          { label: 'Higher/Lower', value: 'higherlower', emoji: '📊' },
+          { label: 'RPS', value: 'rps', emoji: '✊' },
         ])
     );
 
-    await interaction.reply({ embeds: [embed], components: [select], ephemeral: true });
+    await interaction.reply({ embeds: [embed], components: [select] });
   },
 };
