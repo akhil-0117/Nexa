@@ -59,40 +59,6 @@ async function handleAccountSelect(interaction) {
         break;
       }
 
-      case 'wallet': {
-        const userData = getUser(user.id, guildId);
-        const repInfo = getRepInfo(user.id, guildId);
-        const maxTransfer = getEffectiveMaxTransfer(userData.reputation);
-
-        const embed = new EmbedBuilder()
-          .setTitle('Wallet')
-          .setColor(config.colors.economy)
-          .setDescription(`${divider()}\n**Balance:** ${formatCredits(userData.credits)}\n**Reputation:** ${repInfo.score}/100 \u00b7 ${repInfo.level.label}\n**Max Transfer:** ${formatCredits(maxTransfer)}\n${divider()}`)
-          .addFields(
-            { name: 'Sent', value: `${userData.transfers_sent}x`, inline: true },
-            { name: 'Received', value: `${userData.transfers_received}x`, inline: true },
-            { name: 'Status', value: repInfo.score < 50 ? 'Restricted' : 'Active', inline: true },
-          )
-          .setFooter({ text: 'Select an action below' })
-          .setTimestamp();
-
-        const select = new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId('wallet_action_select')
-            .setPlaceholder('Choose an action...')
-            .addOptions([
-              { label: 'Transfer Credits', value: 'transfer', description: 'Send credits to another user' },
-              { label: 'Daily Reward', value: 'daily', description: 'Claim your daily reward' },
-              { label: 'Weekly Reward', value: 'weekly', description: 'Claim your weekly reward' },
-              { label: 'Transactions', value: 'transactions', description: 'View recent transactions' },
-              { label: 'Leaderboard', value: 'leaderboard', description: 'Top earners' },
-            ])
-        );
-
-        await interaction.update({ embeds: [embed], components: [select, backRow()] });
-        break;
-      }
-
       case 'economy': {
         const userData = getUser(user.id, guildId);
         const repInfo = getRepInfo(user.id, guildId);

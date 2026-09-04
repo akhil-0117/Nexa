@@ -233,6 +233,18 @@ async function handleBetModal(interaction, gameType) {
     const gameInfo = getGameInfo(gameType);
     const resultEmbed = buildGameResult(gameType, result, betAmount, gameInfo);
 
+    // Log game result
+    try {
+      const { log } = require('../systems/logging');
+      const gameName = gameInfo.name;
+      const logMsg = `${gameName} | Bet: ${betAmount} | ${result.won ? 'WIN +' + result.payout : 'LOSS -' + betAmount} | Bal: ${result.balance}`;
+      await log(interaction.guild, 'games', logMsg, {
+        actor: interaction.user.id,
+        amount: betAmount,
+        type: `${gameType} (${result.won ? 'win' : 'loss'})`,
+      });
+    } catch (e) { /* logging failed, don't break game */ }
+
     await interaction.reply({ embeds: [resultEmbed] });
 
   } catch (error) {
