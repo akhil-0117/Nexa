@@ -61,7 +61,7 @@ function formatNumber(num) {
 }
 
 function formatCredits(amount) {
-  return `💰 ${formatNumber(amount)} Credits`;
+  return `${formatNumber(amount)} Credits`;
 }
 
 function formatTimestamp(ts) {
@@ -220,19 +220,19 @@ async function backToMainMenu(interaction) {
 
   const embed = new EmbedBuilder()
     .setAuthor({ name: `${user.username}'s Account`, iconURL: user.displayAvatarURL({ dynamic: true }) })
-    .setTitle('📋 NEXAVERSE Account')
+    .setTitle('NEXAVERSE Account')
     .setColor(rank.color)
     .setThumbnail(user.displayAvatarURL({ dynamic: true }))
     .addFields(
-      { name: '⭐ Level', value: `${xpInfo.level}`, inline: true },
-      { name: '🎖️ Rank', value: rank.name, inline: true },
-      { name: '✨ XP', value: `${xpInfo.xp}/${xpInfo.xpNeeded}`, inline: true },
-      { name: '💰 Credits', value: formatCredits(userData.credits), inline: true },
-      { name: '🤝 Reputation', value: `${repInfo.score} · ${repInfo.level.label}`, inline: true },
-      { name: '🏷️ Role', value: roleName, inline: true },
-      { name: '💬 Messages', value: `${userData.messages}`, inline: true },
-      { name: '🎮 Games Won', value: `${userData.games_won}/${userData.games_played}`, inline: true },
-      { name: '🏆 Achievements', value: `${getAchievements(user.id, guildId).length}/${getAllAchievements().length}`, inline: true },
+      { name: 'Level', value: `${xpInfo.level}`, inline: true },
+      { name: 'Rank', value: rank.name, inline: true },
+      { name: 'XP', value: `${xpInfo.xp}/${xpInfo.xpNeeded}`, inline: true },
+      { name: 'Credits', value: formatCredits(userData.credits), inline: true },
+      { name: 'Reputation', value: `${repInfo.score} \u00b7 ${repInfo.level.label}`, inline: true },
+      { name: 'Role', value: roleName, inline: true },
+      { name: 'Messages', value: `${userData.messages}`, inline: true },
+      { name: 'Games Won', value: `${userData.games_won}/${userData.games_played}`, inline: true },
+      { name: 'Achievements', value: `${getAchievements(user.id, guildId).length}/${getAllAchievements().length}`, inline: true },
     )
     .setFooter({ text: 'Select an option below' })
     .setTimestamp();
@@ -242,14 +242,14 @@ async function backToMainMenu(interaction) {
       .setCustomId('account_select')
       .setPlaceholder('Choose an option...')
       .addOptions([
-        { label: 'Profile', value: 'profile', emoji: '👤', description: 'View full profile' },
-        { label: 'Wallet', value: 'wallet', emoji: '💰', description: 'Check balance & transfer' },
-        { label: 'Economy', value: 'economy', emoji: '📊', description: 'Daily, weekly, shop' },
-        { label: 'Activity', value: 'activity', emoji: '📈', description: 'Message stats & streak' },
-        { label: 'Reputation', value: 'reputation', emoji: '🤝', description: 'Trust score & restrictions' },
-        { label: 'Achievements', value: 'achievements', emoji: '🏆', description: 'Unlocked achievements' },
-        { label: 'Transactions', value: 'transactions', emoji: '💳', description: 'Recent transactions' },
-        { label: 'Invites', value: 'invites', emoji: '📨', description: 'Invite statistics' },
+        { label: 'Profile', value: 'profile', description: 'View full profile card' },
+        { label: 'Wallet', value: 'wallet', description: 'Check balance & transfer' },
+        { label: 'Economy', value: 'economy', description: 'Daily, weekly rewards' },
+        { label: 'Activity', value: 'activity', description: 'Message stats & streak' },
+        { label: 'Reputation', value: 'reputation', description: 'Trust score & restrictions' },
+        { label: 'Achievements', value: 'achievements', description: 'Unlocked achievements' },
+        { label: 'Transactions', value: 'transactions', description: 'Recent transactions' },
+        { label: 'Invites', value: 'invites', description: 'Invite statistics' },
       ])
   );
 
@@ -266,5 +266,24 @@ module.exports = {
   createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed,
   paginateItems, getPaginationButtons,
   parseDuration, msToDuration,
-  backToMainMenu,
+  backToMainMenu, updateNickname,
 };
+
+// Update member nickname to show role
+async function updateNickname(member) {
+  if (!member || !member.guild || !member.manageable) return;
+  try {
+    const { getStaffRole, getMemberRoleName } = require('./permissions');
+    const staffRole = getStaffRole(member);
+    const roleName = getMemberRoleName(member);
+    const displayName = member.nickname || member.user.username;
+    // Strip old [ ROLE ] suffix if present
+    const cleanName = displayName.replace(/\s*\[.*?\]\s*$/, '').trim();
+    const nickname = `${cleanName} [ ${roleName} ]`;
+    if (nickname.length <= 32 && nickname !== member.nickname) {
+      await member.setNickname(nickname);
+    }
+  } catch (e) {
+    // Silently fail if can't set nickname
+  }
+}

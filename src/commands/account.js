@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getUser } = require('../systems/economy');
 const { getXpInfo } = require('../systems/xp');
 const { getRepInfo } = require('../systems/reputation');
@@ -45,19 +45,19 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setAuthor({ name: `${user.username}'s Account`, iconURL: user.displayAvatarURL({ dynamic: true }) })
-      .setTitle('📋 NEXAVERSE Account')
+      .setTitle('NEXAVERSE Account')
       .setColor(rank.color)
       .setThumbnail(user.displayAvatarURL({ dynamic: true }))
       .addFields(
-        { name: '⭐ Level', value: `${xpInfo.level}`, inline: true },
-        { name: '🎖️ Rank', value: rank.name, inline: true },
-        { name: '✨ XP', value: `${xpInfo.xp}/${xpInfo.xpNeeded}`, inline: true },
-        { name: '💰 Credits', value: formatCredits(userData.credits), inline: true },
-        { name: '🤝 Reputation', value: `${repInfo.score} · ${repInfo.level.label}`, inline: true },
-        { name: '🏷️ Role', value: roleName, inline: true },
-        { name: '💬 Messages', value: `${userData.messages}`, inline: true },
-        { name: '🎮 Games Won', value: `${userData.games_won}/${userData.games_played}`, inline: true },
-        { name: '🏆 Achievements', value: `${getAchievements(user.id, guildId).length}/${getAllAchievements().length}`, inline: true },
+        { name: 'Level', value: `${xpInfo.level}`, inline: true },
+        { name: 'Rank', value: rank.name, inline: true },
+        { name: 'XP', value: `${xpInfo.xp}/${xpInfo.xpNeeded}`, inline: true },
+        { name: 'Credits', value: formatCredits(userData.credits), inline: true },
+        { name: 'Reputation', value: `${repInfo.score} \u00b7 ${repInfo.level.label}`, inline: true },
+        { name: 'Role', value: roleName, inline: true },
+        { name: 'Messages', value: `${userData.messages}`, inline: true },
+        { name: 'Games Won', value: `${userData.games_won}/${userData.games_played}`, inline: true },
+        { name: 'Achievements', value: `${getAchievements(user.id, guildId).length}/${getAllAchievements().length}`, inline: true },
       )
       .setFooter({ text: 'Select an option below' })
       .setTimestamp();
@@ -72,14 +72,14 @@ module.exports = {
         .setCustomId('account_select')
         .setPlaceholder('Choose an option...')
         .addOptions([
-          { label: 'Profile', value: 'profile', emoji: '👤', description: 'View full profile' },
-          { label: 'Wallet', value: 'wallet', emoji: '💰', description: 'Check balance & transfer' },
-          { label: 'Economy', value: 'economy', emoji: '📊', description: 'Daily, weekly, shop' },
-          { label: 'Activity', value: 'activity', emoji: '📈', description: 'Message stats & streak' },
-          { label: 'Reputation', value: 'reputation', emoji: '🤝', description: 'Trust score & restrictions' },
-          { label: 'Achievements', value: 'achievements', emoji: '🏆', description: 'Unlocked achievements' },
-          { label: 'Transactions', value: 'transactions', emoji: '💳', description: 'Recent transactions' },
-          { label: 'Invites', value: 'invites', emoji: '📨', description: 'Invite statistics' },
+          { label: 'Profile', value: 'profile', description: 'View full profile card' },
+          { label: 'Wallet', value: 'wallet', description: 'Check balance & transfer' },
+          { label: 'Economy', value: 'economy', description: 'Daily, weekly rewards' },
+          { label: 'Activity', value: 'activity', description: 'Message stats & streak' },
+          { label: 'Reputation', value: 'reputation', description: 'Trust score & restrictions' },
+          { label: 'Achievements', value: 'achievements', description: 'Unlocked achievements' },
+          { label: 'Transactions', value: 'transactions', description: 'Recent transactions' },
+          { label: 'Invites', value: 'invites', description: 'Invite statistics' },
         ])
     );
 
@@ -97,13 +97,13 @@ async function showEconomyPanel(interaction) {
   const repInfo = getRepInfo(user.id, guildId);
 
   const embed = new EmbedBuilder()
-    .setTitle('💰 Economy Panel')
+    .setTitle('Economy Panel')
     .setColor(config.colors.economy)
-    .setDescription(`**Balance:** ${formatCredits(userData.credits)}\n**Reputation:** ${repInfo.score} · ${repInfo.level.label}`)
+    .setDescription(`**Balance:** ${formatCredits(userData.credits)}\n**Reputation:** ${repInfo.score} \u00b7 ${repInfo.level.label}`)
     .addFields(
-      { name: '📅 Daily', value: formatCredits(config.economy.dailyReward), inline: true },
-      { name: '📆 Weekly', value: formatCredits(config.economy.weeklyReward), inline: true },
-      { name: '💸 Fee', value: `${config.economy.transferFeePercent}%`, inline: true },
+      { name: 'Daily Reward', value: formatCredits(config.economy.dailyReward), inline: true },
+      { name: 'Weekly Reward', value: formatCredits(config.economy.weeklyReward), inline: true },
+      { name: 'Transfer Fee', value: `${config.economy.transferFeePercent}%`, inline: true },
     )
     .setTimestamp();
 
@@ -112,18 +112,19 @@ async function showEconomyPanel(interaction) {
       .setCustomId('economy_select')
       .setPlaceholder('Choose an action...')
       .addOptions([
-        { label: 'Claim Daily', value: 'daily', emoji: '📅' },
-        { label: 'Claim Weekly', value: 'weekly', emoji: '📆' },
-        { label: 'Transfer', value: 'transfer', emoji: '💸' },
-        { label: 'Shop', value: 'shop', emoji: '🛒' },
-        { label: 'Transactions', value: 'transactions', emoji: '💳' },
-        { label: 'Leaderboard', value: 'leaderboard', emoji: '🏆' },
+        { label: 'Claim Daily', value: 'daily', description: 'Claim daily reward' },
+        { label: 'Claim Weekly', value: 'weekly', description: 'Claim weekly reward' },
+        { label: 'Transfer', value: 'transfer', description: 'Send credits to a user' },
+        { label: 'Transactions', value: 'transactions', description: 'View recent transactions' },
+        { label: 'Leaderboard', value: 'leaderboard', description: 'Top earners' },
       ])
   );
 
   const backRow = new ActionRowBuilder().addComponents(
-    require('discord.js').ButtonBuilder
-      .from({ type: 2, custom_id: 'nav_account_back', label: '← Back', style: 2 })
+    new ButtonBuilder()
+      .setCustomId('nav_account_back')
+      .setLabel('\u2190 Back')
+      .setStyle(ButtonStyle.Secondary)
   );
 
   await interaction.editReply({ embeds: [embed], components: [select, backRow] });

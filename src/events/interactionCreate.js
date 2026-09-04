@@ -291,17 +291,8 @@ async function handleVerifyOTPSubmit(interaction) {
 
     // Change nickname to show role
     try {
-      const staffHierarchy = config.staffHierarchy;
-      let roleLabel = 'VERIFIED';
-      for (const staff of staffHierarchy) {
-        const roleId = config.roleIds[staff.roleIdKey];
-        if (roleId && interaction.member.roles.cache.has(roleId)) {
-          roleLabel = staff.name.replace(/_/g, ' ');
-          break;
-        }
-      }
-      const newNickname = `${interaction.user.username} [ ${roleLabel} ]`;
-      await interaction.member.setNickname(newNickname.substring(0, 32)).catch(() => {});
+      const { updateNickname } = require('../utils/helpers');
+      await updateNickname(interaction.member);
     } catch (e) {}
 
     await log(interaction.guild, 'members', '✅ Verification Complete (OTP)', { actor: interaction.user.id });
@@ -440,11 +431,41 @@ async function executeTransfer(interaction, recipientId, amount, guildId) {
 
   const result = transfer(interaction.user.id, recipientId, amount, guildId);
   if (result.success) {
-    await log(interaction.guild, 'economy', '💸 Transfer', { actor: interaction.user.id, target: recipientId, amount, reason: result.senderTxId });
+    await log(interaction.guild, 'economy', 'Transfer Completed', { actor: interaction.user.id, target: recipientId, amount, reason: result.senderTxId });
+
+    // DM sender
+    try {
+      await interaction.user.send({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle('Transfer Sent')
+            .setDescription(`**To:** <@${recipientId}>\n**Amount:** ${formatCredits(amount)}\n**Fee:** ${formatCredits(result.fee || 0)}\n**Balance:** ${formatCredits(result.senderBalance || getBalance(interaction.user.id, guildId))}\n**TxID:** \`${result.senderTxId}\``)
+            .setColor(config.colors.success)
+            .setTimestamp()
+        ]
+      }).catch(() => {});
+    } catch (e) {}
+
+    // DM receiver
+    try {
+      const recipient = await interaction.guild.members.fetch(recipientId).catch(() => null);
+      if (recipient) {
+        await recipient.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle('Transfer Received')
+              .setDescription(`**From:** <@${interaction.user.id}>\n**Amount:** ${formatCredits(amount)}\n**TxID:** \`${result.senderTxId}\``)
+              .setColor(config.colors.success)
+              .setTimestamp()
+          ]
+        }).catch(() => {});
+      }
+    } catch (e) {}
+
     await safeReply(interaction, {
       embeds: [
         new EmbedBuilder()
-          .setTitle('💸 Transfer Complete')
+          .setTitle('Transfer Complete')
           .setDescription(
             `**From:** <@${interaction.user.id}>\n` +
             `**To:** <@${recipientId}>\n` +
@@ -627,11 +648,11 @@ async function handleHelpCategorySelect(interaction) {
   const divider = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 
   const categories = {
-    general: { title: '📖 General', desc: '`/account` — Profile & wallet\n`/wallet` — Wallet & transfers\n`/games` — Games arcade\n`/shop` — Credit shop\n`/stats` — Server stats' },
-    moderation: { title: '🛡️ Moderation', desc: '`/moderation` — Mod panel (Staff)\n`/staff` — Staff panel (Staff)' },
-    staff: { title: '👨‍💼 Staff', desc: '`/staff` — Staff panel\n`/moderation` — Mod tools\n`/config` — Server config (Admin)' },
-    utility: { title: '⚙️ Utility', desc: '`/ping` — Bot latency\n`/botinfo` — Bot info\n`/serverinfo` — Server info\n`/verify` — Verify account\n`/poll` — Create polls' },
-    social: { title: '🤝 Social', desc: '`/account` — Achievements, invites\n`/stats` — Server statistics' },
+    general: { title: 'General', desc: '`/account` — Profile & wallet\n`/wallet` — Wallet & transfers\n`/games` — Games arcade\n`/stats` — Server stats' },
+    moderation: { title: 'Moderation', desc: '`/moderation` — Mod panel (Staff)\n`/staff` — Staff panel (Staff)' },
+    staff: { title: 'Staff', desc: '`/staff` — Staff panel\n`/moderation` — Mod tools\n`/config` — Server config (Admin)' },
+    utility: { title: 'Utility', desc: '`/ping` — Bot latency\n`/botinfo` — Bot info\n`/serverinfo` — Server info\n`/verify` — Verify account\n`/poll` — Create polls' },
+    social: { title: 'Social', desc: '`/account` — Achievements, invites\n`/stats` — Server statistics' },
   };
   const cat = categories[category] || { title: category, desc: 'No commands listed.' };
   const embed = new EmbedBuilder()

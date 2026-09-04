@@ -193,23 +193,23 @@ const config = {
     { id: '100_day_streak', name: 'Unstoppable', description: '100-day activity streak', category: 'Activity', icon: '⚡', requirement: { type: 'streak', count: 100 } },
   ],
 
-  // Embed colors
+  // Embed colors - professional & minimal
   colors: {
-    primary: '#00d4ff',
-    success: '#2ecc71',
-    warning: '#f1c40f',
-    error: '#e74c3c',
-    info: '#3498db',
-    economy: '#f39c12',
-    game: '#9b59b6',
-    moderation: '#e74c3c',
-    staff: '#3498db',
-    achievement: '#f1c40f',
-    security: '#e67e22',
-    ticket: '#1abc9c',
-    giveaway: '#e91e63',
-    event: '#9c27b0',
-    nexaverse: '#00d4ff',
+    primary: '#2b2b2b',     // dark/black for account panels
+    success: '#2ecc71',     // green for wins, verified, completed
+    warning: '#f39c12',     // amber for warnings
+    error: '#e74c3c',       // red for errors, losses, bans
+    info: '#2b2b2b',        // dark for general info
+    economy: '#7c3aed',     // purple for economy/wallet
+    game: '#2b2b2b',        // dark for game panels
+    moderation: '#7c3aed',  // purple for mod panels
+    staff: '#2b2b2b',       // dark for staff panels
+    achievement: '#7c3aed', // purple for achievements
+    security: '#e74c3c',    // red for security alerts
+    ticket: '#2b2b2b',      // dark for tickets
+    giveaway: '#7c3aed',    // purple for giveaways
+    event: '#7c3aed',       // purple for events
+    nexaverse: '#7c3aed',   // brand purple
   },
 
   // Notification categories

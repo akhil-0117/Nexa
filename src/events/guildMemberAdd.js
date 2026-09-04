@@ -3,6 +3,7 @@ const { getDb } = require('../database/init');
 const { trackJoinWithAge } = require('../systems/antiRaid');
 const { log } = require('../systems/logging');
 const { recordJoin } = require('../systems/invites');
+const { updateNickname } = require('../utils/helpers');
 const config = require('../config');
 
 module.exports = {
@@ -61,5 +62,8 @@ module.exports = {
 
       await channel.send({ embeds: [embed] }).catch(() => {});
     }
+
+    // Update nickname to show role
+    await updateNickname(member);
   },
 };

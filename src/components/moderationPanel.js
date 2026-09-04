@@ -41,9 +41,11 @@ async function handleUserSelect(interaction) {
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(`🛡️ Moderating ${member.user.username}`)
+    .setTitle(`Moderation — ${member.user.username}`)
     .setColor(config.colors.moderation)
-    .setDescription(`**Target:** <@${targetId}>\n**ID:** ${targetId}\n**Joined:** <t:${Math.floor(member.joinedTimestamp / 1000)}:R>`)
+    .setDescription(`**Target:** <@${targetId}>
+**ID:** ${targetId}
+**Joined:** <t:${Math.floor(member.joinedTimestamp / 1000)}:R>`)
     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
     .setTimestamp();
 
@@ -52,16 +54,16 @@ async function handleUserSelect(interaction) {
       .setCustomId(`mod_action_select_${targetId}`)
       .setPlaceholder('Choose an action...')
       .addOptions([
-        { label: 'Warn', value: 'warn', emoji: '⚠️', description: 'Issue a warning' },
-        { label: 'Timeout', value: 'timeout', emoji: '🔇', description: 'Timeout a member' },
-        { label: 'Kick', value: 'kick', emoji: '👢', description: 'Kick a member' },
-        { label: 'Ban', value: 'ban', emoji: '🔨', description: 'Ban a member' },
-        { label: 'Unmute', value: 'unmute', emoji: '🔊', description: 'Remove mute' },
-        { label: 'Untimeout', value: 'untimeout', emoji: '⏰', description: 'Remove timeout' },
-        { label: 'Purge', value: 'purge', emoji: '🧹', description: 'Delete messages' },
-        { label: 'Lock/Unlock', value: 'lock', emoji: '🔒', description: 'Toggle channel lock' },
-        { label: 'Slowmode', value: 'slowmode', emoji: '🐌', description: 'Set slowmode' },
-        { label: 'View Cases', value: 'cases', emoji: '📋', description: 'View cases' },
+        { label: 'Warn', value: 'warn', description: 'Issue a warning' },
+        { label: 'Timeout', value: 'timeout', description: 'Timeout a member' },
+        { label: 'Kick', value: 'kick', description: 'Kick a member' },
+        { label: 'Ban', value: 'ban', description: 'Ban a member' },
+        { label: 'Unmute', value: 'unmute', description: 'Remove mute' },
+        { label: 'Untimeout', value: 'untimeout', description: 'Remove timeout' },
+        { label: 'Purge', value: 'purge', description: 'Delete messages' },
+        { label: 'Lock/Unlock', value: 'lock', description: 'Toggle channel lock' },
+        { label: 'Slowmode', value: 'slowmode', description: 'Set slowmode' },
+        { label: 'View Cases', value: 'cases', description: 'View cases' },
       ])
   );
 
@@ -131,7 +133,7 @@ async function handleActionSelect(interaction) {
         const member = await interaction.guild.members.fetch(targetId);
         await member.timeout(null);
         const result = warn(targetId, interaction.user.id, 'Manual unmute', interaction.guild.id);
-        await log(interaction.guild, 'moderation', '🔊 Unmuted', { actor: interaction.user.id, target: targetId, caseId: result.caseId });
+        await log(interaction.guild, 'moderation', 'Unmuted', { actor: interaction.user.id, target: targetId, caseId: result.caseId });
         await interaction.reply({ embeds: [
           new EmbedBuilder().setTitle('✅ Unmuted').setDescription(`<@${targetId}> unmuted.`).setColor(config.colors.success).setTimestamp()
         ] });
@@ -145,7 +147,7 @@ async function handleActionSelect(interaction) {
         const member = await interaction.guild.members.fetch(targetId);
         await member.timeout(null);
         const result = warn(targetId, interaction.user.id, 'Manual untimeout', interaction.guild.id);
-        await log(interaction.guild, 'moderation', '⏰ Untimeout', { actor: interaction.user.id, target: targetId, caseId: result.caseId });
+        await log(interaction.guild, 'moderation', 'Untimeout', { actor: interaction.user.id, target: targetId, caseId: result.caseId });
         await interaction.reply({ embeds: [
           new EmbedBuilder().setTitle('✅ Untimeout').setDescription(`<@${targetId}> timeout removed.`).setColor(config.colors.success).setTimestamp()
         ] });
@@ -210,9 +212,11 @@ async function handleWarnModal(interaction) {
   const targetId = parts[parts.length - 1];
   const reason = interaction.fields.getTextInputValue('reason');
   const result = warn(targetId, interaction.user.id, reason, interaction.guild.id);
-  await log(interaction.guild, 'moderation', '⚠️ Warning', { actor: interaction.user.id, target: targetId, reason, caseId: result.caseId });
+  await log(interaction.guild, 'moderation', 'Warning Issued', { actor: interaction.user.id, target: targetId, reason, caseId: result.caseId });
   await interaction.reply({ embeds: [
-    new EmbedBuilder().setTitle('⚠️ Warning Issued').setDescription(`<@${targetId}> warned.\nCase: ${result.caseId}\nRep -${result.reputationDecrease}`).setColor(config.colors.moderation).setTimestamp()
+    new EmbedBuilder().setTitle('Warning Issued').setDescription(`<@${targetId}> warned.
+Case: ${result.caseId}
+Rep -${result.reputationDecrease}`).setColor(config.colors.warning).setTimestamp()
   ] });
 }
 
@@ -243,9 +247,10 @@ async function handleKickModal(interaction) {
   const { kick: kickMod } = require('../systems/moderation');
   const result = kickMod(targetId, interaction.user.id, reason, interaction.guild.id);
   try { await interaction.guild.members.kick(targetId, reason); } catch (e) {}
-  await log(interaction.guild, 'moderation', '👢 Kick', { actor: interaction.user.id, target: targetId, reason, caseId: result.caseId });
+  await log(interaction.guild, 'moderation', 'Member Kicked', { actor: interaction.user.id, target: targetId, reason, caseId: result.caseId });
   await interaction.reply({ embeds: [
-    new EmbedBuilder().setTitle('👢 Kicked').setDescription(`<@${targetId}> kicked.\nCase: ${result.caseId}`).setColor(config.colors.moderation).setTimestamp()
+    new EmbedBuilder().setTitle('Member Kicked').setDescription(`<@${targetId}> kicked.
+Case: ${result.caseId}`).setColor(config.colors.error).setTimestamp()
   ] });
 }
 
@@ -256,9 +261,10 @@ async function handleBanModal(interaction) {
   const { ban: banMod } = require('../systems/moderation');
   const result = banMod(targetId, interaction.user.id, reason, { guildId: interaction.guild.id });
   try { await interaction.guild.members.ban(targetId, { reason }); } catch (e) {}
-  await log(interaction.guild, 'moderation', '🔨 Ban', { actor: interaction.user.id, target: targetId, reason, caseId: result.caseId });
+  await log(interaction.guild, 'moderation', 'Member Banned', { actor: interaction.user.id, target: targetId, reason, caseId: result.caseId });
   await interaction.reply({ embeds: [
-    new EmbedBuilder().setTitle('🔨 Banned').setDescription(`<@${targetId}> banned.\nCase: ${result.caseId}`).setColor(config.colors.moderation).setTimestamp()
+    new EmbedBuilder().setTitle('Member Banned').setDescription(`<@${targetId}> banned.
+Case: ${result.caseId}`).setColor(config.colors.error).setTimestamp()
   ] });
 }
 
@@ -269,9 +275,9 @@ async function handlePurgeModal(interaction) {
   }
   try {
     const deleted = await interaction.channel.bulkDelete(count, true);
-    await log(interaction.guild, 'moderation', '🧹 Purge', { actor: interaction.user.id, reason: `${deleted.size} deleted` });
+    await log(interaction.guild, 'moderation', 'Messages Purged', { actor: interaction.user.id, reason: `${deleted.size} deleted` });
     await interaction.reply({ embeds: [
-      new EmbedBuilder().setTitle('🧹 Purged').setDescription(`${deleted.size} messages deleted.`).setColor(config.colors.success).setTimestamp()
+      new EmbedBuilder().setTitle('Messages Purged').setDescription(`${deleted.size} messages deleted.`).setColor(config.colors.success).setTimestamp()
     ] });
   } catch (e) {
     await interaction.reply({ embeds: [new EmbedBuilder().setTitle('❌ Error').setDescription(e.message).setColor(config.colors.error)], ephemeral: true });

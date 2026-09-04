@@ -198,7 +198,7 @@ function playRps(userId, guildId, channelId, choice, amount) {
   const payout = won ? amount * 2 : result === 'draw' ? amount : 0;
   const finish = finishGame(gameId, userId, guildId, `${choice} vs ${botChoice}`, won ? userId : '', payout);
 
-  return { success: true, gameId, botChoice, result, won, payout, balance: getBalance(userId, guildId), transactionId: finish?.txId };
+  return { success: true, gameId, userChoice: choice, botChoice, result, won, payout, balance: getBalance(userId, guildId), transactionId: finish?.txId };
 }
 
 function playBlackjack(userId, guildId, channelId, amount) {

@@ -6,6 +6,7 @@ const { checkBadWords } = require('../systems/badwords');
 const { decreaseReputation } = require('../systems/reputation');
 const { log } = require('../systems/logging');
 const { checkAchievements } = require('../systems/achievements');
+const { updateNickname } = require('../utils/helpers');
 const config = require('../config');
 
 module.exports = {
@@ -59,6 +60,12 @@ module.exports = {
       weekly_messages = weekly_messages + 1, monthly_messages = monthly_messages + 1,
       last_message_time = ?, updated_at = ? WHERE user_id = ? AND guild_id = ?`)
       .run(Date.now(), Date.now(), userId, guildId);
+
+    // Periodically update nickname (every 20 messages)
+    const msgCount = db.prepare('SELECT messages FROM users WHERE user_id = ? AND guild_id = ?').get(userId, guildId);
+    if (msgCount && msgCount.messages % 20 === 0) {
+      updateNickname(message.member).catch(() => {});
+    }
 
     // Check bad words
     const badWord = checkBadWords(content);
