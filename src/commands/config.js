@@ -11,7 +11,7 @@ module.exports = {
     if (!isAdmin(interaction.member)) {
       return interaction.reply({ embeds: [
         new EmbedBuilder().setTitle('🔒 Access Denied').setDescription('Administrator permissions required.').setColor(config.colors.error)
-      ], ephemeral: true });
+      ], flags: 64 });
     }
 
     const embed = new EmbedBuilder()

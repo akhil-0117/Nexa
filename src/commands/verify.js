@@ -12,7 +12,7 @@ module.exports = {
     if (isVerified(interaction.user.id, interaction.guild.id)) {
       return interaction.reply({
         embeds: [new EmbedBuilder().setTitle('Already Verified').setDescription('Your account is already verified.').setColor(config.colors.success)],
-        ephemeral: true,
+        flags: 64,
       });
     }
 

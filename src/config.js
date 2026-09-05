@@ -142,6 +142,26 @@ const config = {
     nexaverse: '#7c3aed',
   },
 
+  achievements: [
+    { id: 'first_message', name: 'First Steps', description: 'Send your first message', category: 'Activity', icon: '💬', requirement: { type: 'messages', count: 1 } },
+    { id: '100_messages', name: 'Chatterbox', description: 'Send 100 messages', category: 'Activity', icon: '🗣️', requirement: { type: 'messages', count: 100 } },
+    { id: '1000_messages', name: 'Conversationalist', description: 'Send 1,000 messages', category: 'Activity', icon: '📢', requirement: { type: 'messages', count: 1000 } },
+    { id: '10000_messages', name: 'Living Legend', description: 'Send 10,000 messages', category: 'Activity', icon: '🏆', requirement: { type: 'messages', count: 10000 } },
+    { id: 'first_transfer', name: 'Generous', description: 'Make your first transfer', category: 'Economy', icon: '💸', requirement: { type: 'transfers_sent', count: 1 } },
+    { id: 'first_daily', name: 'Daily Devotee', description: 'Claim your first daily reward', category: 'Economy', icon: '📅', requirement: { type: 'daily_claims', count: 1 } },
+    { id: 'first_win', name: 'Winner', description: 'Win your first game', category: 'Games', icon: '🏅', requirement: { type: 'games_won', count: 1 } },
+    { id: '10_wins', name: 'Competitor', description: 'Win 10 games', category: 'Games', icon: '🥇', requirement: { type: 'games_won', count: 10 } },
+    { id: '100_games', name: 'Veteran Player', description: 'Play 100 games', category: 'Games', icon: '🎮', requirement: { type: 'games_played', count: 100 } },
+    { id: 'first_event', name: 'Participant', description: 'Join your first event', category: 'Events', icon: '🎉', requirement: { type: 'events_joined', count: 1 } },
+    { id: 'first_invite', name: 'Recruiter', description: 'Get your first valid invite', category: 'Invites', icon: '📨', requirement: { type: 'valid_invites', count: 1 } },
+    { id: '10_invites', name: 'Ambassador', description: 'Get 10 valid invites', category: 'Invites', icon: '🌐', requirement: { type: 'valid_invites', count: 10 } },
+    { id: '50_invites', name: 'Influencer', description: 'Get 50 valid invites', category: 'Invites', icon: '🌟', requirement: { type: 'valid_invites', count: 50 } },
+    { id: '100_invites', name: 'Recruitment Master', description: 'Get 100 valid invites', category: 'Invites', icon: '👑', requirement: { type: 'valid_invites', count: 100 } },
+    { id: '7_day_streak', name: 'Consistent', description: '7-day activity streak', category: 'Activity', icon: '🔥', requirement: { type: 'streak', count: 7 } },
+    { id: '30_day_streak', name: 'Dedicated', description: '30-day activity streak', category: 'Activity', icon: '💪', requirement: { type: 'streak', count: 30 } },
+    { id: '100_day_streak', name: 'Unstoppable', description: '100-day activity streak', category: 'Activity', icon: '⚡', requirement: { type: 'streak', count: 100 } },
+  ],
+
   notificationCategories: ['giveaways', 'events', 'economy', 'level_ups', 'invites', 'announcements', 'tickets'],
 };
 

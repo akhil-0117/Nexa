@@ -19,7 +19,7 @@ module.exports = {
     if (options.length < 2 || options.length > 10) {
       return interaction.reply({ embeds: [
         new EmbedBuilder().setTitle('❌ Invalid Options').setDescription('Provide 2-10 options separated by commas.').setColor(config.colors.error)
-      ], ephemeral: true });
+      ], flags: 64 });
     }
 
     const result = createPoll(interaction.guild.id, interaction.user.id, question, options, duration * 60000);

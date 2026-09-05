@@ -15,7 +15,7 @@ module.exports = {
           console.error(`[CMD] Error executing ${interaction.commandName}:`, error.message);
           await safeReply(interaction, {
             embeds: [new EmbedBuilder().setTitle('Error').setDescription('Something went wrong. Please try again.').setColor(config.colors.error)],
-            ephemeral: true,
+            flags: 64,
           });
         }
         return;
@@ -86,14 +86,14 @@ module.exports = {
           } else {
             await safeReply(interaction, {
               embeds: [new EmbedBuilder().setTitle('Expired').setDescription('This interaction is no longer active. Use the command again.').setColor(config.colors.warning)],
-              ephemeral: true,
+              flags: 64,
             });
           }
         } catch (error) {
           console.error(`[BTN] Error with ${interaction.customId}:`, error.message);
           await safeReply(interaction, {
             embeds: [new EmbedBuilder().setTitle('Error').setDescription('Something went wrong. Please try again.').setColor(config.colors.error)],
-            ephemeral: true,
+            flags: 64,
           });
         }
         return;
@@ -121,13 +121,13 @@ module.exports = {
 
           await safeReply(interaction, {
             embeds: [new EmbedBuilder().setTitle('Expired').setDescription('This menu is no longer active. Use the command again.').setColor(config.colors.warning)],
-            ephemeral: true,
+            flags: 64,
           });
         } catch (error) {
           console.error(`[SELECT] Error with ${id}:`, error.message);
           await safeReply(interaction, {
             embeds: [new EmbedBuilder().setTitle('Error').setDescription('Something went wrong. Please try again.').setColor(config.colors.error)],
-            ephemeral: true,
+            flags: 64,
           });
         }
         return;
@@ -147,7 +147,7 @@ module.exports = {
             if (modalOwnerId !== interaction.user.id) {
               return safeReply(interaction, {
                 embeds: [new EmbedBuilder().setTitle('Not Your Panel').setDescription('This is not your transfer panel.').setColor(config.colors.error)],
-                ephemeral: true,
+                flags: 64,
               });
             }
             await handleTransferModal(interaction, recipientId);
@@ -179,14 +179,14 @@ module.exports = {
           } else {
             await safeReply(interaction, {
               embeds: [new EmbedBuilder().setTitle('Expired').setDescription('This modal is no longer active. Use the command again.').setColor(config.colors.warning)],
-              ephemeral: true,
+              flags: 64,
             });
           }
         } catch (error) {
           console.error(`[MODAL] Error with ${id}:`, error.message);
           await safeReply(interaction, {
             embeds: [new EmbedBuilder().setTitle('Error').setDescription('Something went wrong. Please try again.').setColor(config.colors.error)],
-            ephemeral: true,
+            flags: 64,
           });
         }
         return;
@@ -195,7 +195,7 @@ module.exports = {
       console.error('[INTERACTION] Unhandled error:', error.message);
       await safeReply(interaction, {
         embeds: [new EmbedBuilder().setTitle('Error').setDescription('An unexpected error occurred.').setColor(config.colors.error)],
-        ephemeral: true,
+        flags: 64,
       });
     }
   },
@@ -233,7 +233,7 @@ async function handleVerifyConfirm(interaction) {
   if (isVerified(interaction.user.id, interaction.guild.id)) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Already Verified').setDescription('Your account is already verified.').setColor(config.colors.success)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -241,7 +241,7 @@ async function handleVerifyConfirm(interaction) {
   if (!can.allowed) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Cannot Verify').setDescription(can.reason).setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -260,7 +260,7 @@ async function handleVerifyConfirm(interaction) {
   } catch (e) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('DMs Closed').setDescription('I cannot send you a DM. Please enable DMs from server members and try again.').setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -280,7 +280,7 @@ async function handleVerifyConfirm(interaction) {
         new ButtonBuilder().setCustomId('verify_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
       )
     ],
-    ephemeral: true,
+    flags: 64,
   });
 }
 
@@ -333,7 +333,7 @@ async function handleVerifyOTPSubmit(interaction) {
   } else {
     await safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Verification Failed').setDescription(result.reason).setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 }
@@ -351,7 +351,7 @@ async function handleTransferModal(interaction, recipientId) {
   if (isNaN(amount) || amount <= 0) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Invalid Amount').setDescription('Enter a positive number.').setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -359,7 +359,7 @@ async function handleTransferModal(interaction, recipientId) {
   if (balance < amount) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Insufficient Funds').setDescription(`Balance: ${formatCredits(balance)}`).setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -381,7 +381,7 @@ async function handleTransferModal(interaction, recipientId) {
     } catch (e) {
       return safeReply(interaction, {
         embeds: [new EmbedBuilder().setTitle('DMs Closed').setDescription('Enable DMs to receive transfer OTP.').setColor(config.colors.error)],
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -408,7 +408,7 @@ async function handleTransferOTPSubmit(interaction) {
   if (!pendingTransferData || pendingTransferData.userId !== interaction.user.id) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('No Pending Transfer').setDescription('No transfer to verify. Start again.').setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -416,7 +416,7 @@ async function handleTransferOTPSubmit(interaction) {
     pendingTransferData = null;
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Expired').setDescription('Transfer OTP expired. Start again.').setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -431,7 +431,7 @@ async function handleTransferOTPSubmit(interaction) {
     pendingTransferData = null;
     await safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Wrong OTP').setDescription(result.reason).setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 }
@@ -491,7 +491,7 @@ async function executeTransfer(interaction, recipientId, amount, guildId) {
   } else {
     await safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Transfer Failed').setDescription(result.error || 'Transfer failed').setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 }
@@ -615,7 +615,7 @@ async function navToModSelect(interaction) {
   if (!isStaff(interaction.member)) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Staff Only').setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -646,7 +646,7 @@ async function handleModUserSelect(interaction) {
   if (!isStaff(interaction.member)) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Staff Only').setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -655,7 +655,7 @@ async function handleModUserSelect(interaction) {
   if (!target) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Error').setDescription('Member not found.').setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -701,7 +701,7 @@ async function handleStaffPanelSelect(interaction) {
   if (!isStaff(interaction.member)) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Staff Only').setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -756,7 +756,7 @@ async function handleConfigSelect(interaction) {
   if (!isAdmin(interaction.member)) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Admin Only').setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
   const category = interaction.values[0];
@@ -776,7 +776,7 @@ async function handleEventAdminSelect(interaction) {
   if (!isStaff(interaction.member)) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Staff Only').setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -848,6 +848,7 @@ async function handleEventAdminSelect(interaction) {
 
 async function handleCreateDeathNote(interaction) {
   const { createGame, activeGames } = require('../systems/deathnote');
+  const { log } = require('../systems/logging');
 
   const title = interaction.fields.getTextInputValue('title');
   const prize = parseInt(interaction.fields.getTextInputValue('prize')) || 500;
@@ -896,13 +897,13 @@ async function handleDeathNoteJoin(interaction, id) {
   if (!result.success) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Cannot Join').setDescription(result.error).setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
   await safeReply(interaction, {
     embeds: [new EmbedBuilder().setTitle('Joined').setDescription(`You joined the Death Note game! (${result.playerCount} players)`).setColor(config.colors.success)],
-    ephemeral: true,
+    flags: 64,
   });
 }
 
@@ -915,7 +916,7 @@ async function handleDeathNoteStart(interaction, id) {
   if (!result.success) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Cannot Start').setDescription(result.error).setColor(config.colors.error)],
-      ephemeral: true,
+      flags: 64,
     });
   }
 
@@ -953,7 +954,7 @@ async function handleDeathNoteKill(interaction, id) {
 
   const result = kiraKill(gameId, interaction.user.id, targetId);
   if (!result.success) {
-    return safeReply(interaction, { embeds: [new EmbedBuilder().setTitle('Error').setDescription(result.error).setColor(config.colors.error)], ephemeral: true });
+    return safeReply(interaction, { embeds: [new EmbedBuilder().setTitle('Error').setDescription(result.error).setColor(config.colors.error)], flags: 64 });
   }
 
   const game = activeGames.get(gameId);
@@ -977,7 +978,7 @@ async function handleDeathNoteAccuse(interaction, id) {
 
   const result = lAccuse(gameId, interaction.user.id, suspectId);
   if (!result.success) {
-    return safeReply(interaction, { embeds: [new EmbedBuilder().setTitle('Error').setDescription(result.error).setColor(config.colors.error)], ephemeral: true });
+    return safeReply(interaction, { embeds: [new EmbedBuilder().setTitle('Error').setDescription(result.error).setColor(config.colors.error)], flags: 64 });
   }
 
   const game = activeGames.get(gameId);

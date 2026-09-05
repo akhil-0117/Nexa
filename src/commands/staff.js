@@ -11,7 +11,7 @@ module.exports = {
     if (!isStaff(interaction.member)) {
       return interaction.reply({
         embeds: [new EmbedBuilder().setTitle('Staff Only').setDescription('You do not have permission to use this.').setColor(config.colors.error)],
-        ephemeral: true,
+        flags: 64,
       });
     }
 

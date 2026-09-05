@@ -14,27 +14,27 @@ module.exports = {
 
 async function handleClaim(interaction) {
   if (!isStaff(interaction.member)) {
-    return interaction.reply({ embeds: [new EmbedBuilder().setTitle('❌ Staff Only').setColor(config.colors.error)], ephemeral: true });
+    return interaction.reply({ embeds: [new EmbedBuilder().setTitle('❌ Staff Only').setColor(config.colors.error)], flags: 64 });
   }
   claimTicket(interaction.customId.split('_').pop() || interaction.channel.name, interaction.user.id);
   await log(interaction.guild, 'tickets', '🎫 Ticket Claimed', { actor: interaction.user.id });
-  await interaction.reply({ embeds: [new EmbedBuilder().setTitle('✅ Claimed').setDescription(`Ticket claimed by <@${interaction.user.id}>`).setColor(config.colors.success)], ephemeral: true });
+  await interaction.reply({ embeds: [new EmbedBuilder().setTitle('✅ Claimed').setDescription(`Ticket claimed by <@${interaction.user.id}>`).setColor(config.colors.success)], flags: 64 });
 }
 
 async function handleClose(interaction) {
   if (!isStaff(interaction.member)) {
-    return interaction.reply({ embeds: [new EmbedBuilder().setTitle('❌ Staff Only').setColor(config.colors.error)], ephemeral: true });
+    return interaction.reply({ embeds: [new EmbedBuilder().setTitle('❌ Staff Only').setColor(config.colors.error)], flags: 64 });
   }
   closeTicket(interaction.customId.split('_').pop() || interaction.channel.name);
   await log(interaction.guild, 'tickets', '🎫 Ticket Closed', { actor: interaction.user.id });
-  await interaction.reply({ embeds: [new EmbedBuilder().setTitle('✅ Closed').setDescription('Ticket closed.').setColor(config.colors.warning).setTimestamp()], ephemeral: true });
+  await interaction.reply({ embeds: [new EmbedBuilder().setTitle('✅ Closed').setDescription('Ticket closed.').setColor(config.colors.warning).setTimestamp()], flags: 64 });
 }
 
 async function handleReopen(interaction) {
   if (!isStaff(interaction.member)) {
-    return interaction.reply({ embeds: [new EmbedBuilder().setTitle('❌ Staff Only').setColor(config.colors.error)], ephemeral: true });
+    return interaction.reply({ embeds: [new EmbedBuilder().setTitle('❌ Staff Only').setColor(config.colors.error)], flags: 64 });
   }
   reopenTicket(interaction.customId.split('_').pop() || interaction.channel.name);
   await log(interaction.guild, 'tickets', '🎫 Ticket Reopened', { actor: interaction.user.id });
-  await interaction.reply({ embeds: [new EmbedBuilder().setTitle('✅ Reopened').setDescription('Ticket reopened.').setColor(config.colors.success).setTimestamp()], ephemeral: true });
+  await interaction.reply({ embeds: [new EmbedBuilder().setTitle('✅ Reopened').setDescription('Ticket reopened.').setColor(config.colors.success).setTimestamp()], flags: 64 });
 }
