@@ -18,10 +18,12 @@ module.exports = {
         '`/account` \u2014 Your account dashboard\n' +
         '`/wallet` \u2014 Wallet and transfers\n' +
         '`/games` \u2014 Games arcade\n' +
+        '`/event` \u2014 Create/manage events (Staff)\n' +
         '`/moderation` \u2014 Mod tools (Staff)\n' +
         '`/staff` \u2014 Staff panel\n' +
         '`/verify` \u2014 Verify your account\n' +
         '`/stats` \u2014 Server statistics\n' +
+        '`/userinfo` \u2014 User information\n' +
         '`/ping` \u2014 Bot latency\n' +
         '`/botinfo` \u2014 Bot information\n' +
         '`/serverinfo` \u2014 Server information\n' +
