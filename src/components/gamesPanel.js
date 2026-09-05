@@ -2,6 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, 
 const { formatCredits, getEffectiveMaxBet } = require('../utils/helpers');
 const { getUser } = require('../systems/economy');
 const { getRepInfo } = require('../systems/reputation');
+const { log } = require('../systems/logging');
 const config = require('../config');
 
 // Map gameType to actual function name in games.js
@@ -53,7 +54,7 @@ module.exports = {
 };
 
 function divider() {
-  return '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+  return '\u2501'.repeat(32);
 }
 
 function getGameInfo(gameType) {
@@ -87,7 +88,7 @@ async function handleGameSelect(interaction) {
   const extraFields = GAME_BET_FIELDS[gameType] || [];
   const modal = new ModalBuilder()
     .setCustomId(`bet_modal_${gameType}`)
-    .setTitle(`${game.name} — Place Bet`);
+    .setTitle(`${game.name} \u2014 Place Bet`);
 
   modal.addComponents(
     new ActionRowBuilder().addComponents(
@@ -136,7 +137,7 @@ async function handleBetModal(interaction, gameType) {
   try {
     const games = require('../systems/games');
     const funcName = GAME_FUNCTION_MAP[gameType];
-    if (!funcName || !games[funcName]) {
+    if (!funcName || typeof games[funcName] !== 'function') {
       return interaction.reply({
         embeds: [new EmbedBuilder().setTitle('Game Unavailable').setDescription('This game is not available yet.').setColor('#e74c3c')],
         flags: 64,
@@ -224,86 +225,51 @@ async function handleBetModal(interaction, gameType) {
 
     if (!result || !result.success) {
       return interaction.reply({
-        embeds: [new EmbedBuilder().setTitle('Game Error').setDescription(result?.reason || 'Something went wrong.').setColor('#e74c3c')],
+        embeds: [new EmbedBuilder().setTitle('Game Error').setDescription(result?.error || 'Failed to play game.').setColor('#e74c3c')],
         flags: 64,
       });
     }
 
-    // Build result embed
     const gameInfo = getGameInfo(gameType);
-    const resultEmbed = buildGameResult(gameType, result, betAmount, gameInfo);
+    const gameName = gameInfo.name;
+    const isWin = result.payout > 0;
+    const resultColor = isWin ? config.colors.success : config.colors.error;
 
-    // Log game result
-    try {
-      const { log } = require('../systems/logging');
-      const gameName = gameInfo.name;
-      const logMsg = `${gameName} | Bet: ${betAmount} | ${result.won ? 'WIN +' + result.payout : 'LOSS -' + betAmount} | Bal: ${result.balance}`;
-      await log(interaction.guild, 'games', logMsg, {
-        actor: interaction.user.id,
-        amount: betAmount,
-        type: `${gameType} (${result.won ? 'win' : 'loss'})`,
-      });
-    } catch (e) { /* logging failed, don't break game */ }
+    // Build result embed
+    let resultDesc = `${divider()}\n`;
+    resultDesc += `**Bet:** ${formatCredits(betAmount)}\n`;
+    resultDesc += `**Result:** ${result.description || result.result || 'Played'}\n`;
+    resultDesc += `**Outcome:** ${isWin ? 'Won' : 'Lost'}\n`;
+    if (isWin) {
+      resultDesc += `**Payout:** ${formatCredits(result.payout)}\n`;
+    }
+    resultDesc += `**Balance:** ${formatCredits(result.newBalance || userData.credits - betAmount + (result.payout || 0))}\n`;
+    resultDesc += `${divider()}`;
+
+    const resultEmbed = new EmbedBuilder()
+      .setTitle(`${gameName} \u2014 ${isWin ? 'Won' : 'Lost'}`)
+      .setDescription(resultDesc)
+      .setColor(resultColor)
+      .setFooter({ text: `Game ID: ${result.gameId || 'N/A'}` })
+      .setTimestamp();
 
     await interaction.reply({ embeds: [resultEmbed] });
 
+    // Log the game
+    try {
+      await log(interaction.guild, 'games', `${gameName} ${isWin ? 'Won' : 'Lost'}`, {
+        actor: interaction.user.id,
+        amount: betAmount,
+        reason: isWin ? `Payout: ${result.payout}` : 'Lost',
+      });
+    } catch (e) {}
   } catch (error) {
     console.error(`[GAME] Error playing ${gameType}:`, error.message);
-    return interaction.reply({
-      embeds: [new EmbedBuilder().setTitle('Error').setDescription('Something went wrong. Please try again.').setColor('#e74c3c')],
-      flags: 64,
-    });
+    try {
+      await interaction.reply({
+        embeds: [new EmbedBuilder().setTitle('Game Error').setDescription('Something went wrong. Please try again.').setColor('#e74c3c')],
+        flags: 64,
+      });
+    } catch (e) {}
   }
-}
-
-function buildGameResult(gameType, result, betAmount, gameInfo) {
-  const winColor = result.won ? '#2ecc71' : '#e74c3c';
-  const resultText = result.won ? '**WIN**' : '**LOSS**';
-  const payoutText = result.won ? `+${formatCredits(result.payout)}` : `-${formatCredits(betAmount)}`;
-
-  const embed = new EmbedBuilder()
-    .setTitle(`${gameInfo.name} — ${resultText}`)
-    .setColor(winColor)
-    .addFields(
-      { name: 'Bet', value: formatCredits(betAmount), inline: true },
-      { name: 'Result', value: payoutText, inline: true },
-      { name: 'Balance', value: formatCredits(result.balance), inline: true },
-    )
-    .setTimestamp();
-
-  switch (gameType) {
-    case 'roulette':
-      embed.setDescription(`Landed on **${result.color}** (${result.result})`);
-      break;
-    case 'coinflip':
-      embed.setDescription(`Coin landed on **${result.result}**`);
-      break;
-    case 'blackjack': {
-      const playerCards = result.playerHand.map(c => `${c.value}${c.suit}`).join(' ');
-      const dealerCards = result.dealerHand.map(c => `${c.value}${c.suit}`).join(' ');
-      embed.setDescription(`**You:** ${playerCards} (${result.playerVal})\n**Dealer:** ${dealerCards} (${result.dealerVal})\n\n${result.result.replace(/_/g, ' ').toUpperCase()}`);
-      break;
-    }
-    case 'slots':
-      embed.setDescription(`Reels: **${result.reels.join(' | ')}**`);
-      break;
-    case 'dice':
-      embed.setDescription(`Rolled a **${result.roll}**`);
-      break;
-    case 'higherlower':
-      embed.setDescription(`**${result.first}** → **${result.second}**`);
-      break;
-    case 'rps':
-      embed.setDescription(`You: **${result.userChoice || 'rock'}** vs Bot: **${result.botChoice}**\n${result.result.toUpperCase()}`);
-      break;
-    default:
-      embed.setDescription('Game completed.');
-      break;
-  }
-
-  if (result.transactionId) {
-    embed.setFooter({ text: `TxID: ${result.transactionId}` });
-  }
-
-  return embed;
 }

@@ -1,6 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, UserSelectMenuBuilder } = require('discord.js');
-const { isStaff, getStaffRole } = require('../utils/permissions');
+const { SlashCommandBuilder, EmbedBuilder, UserSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
 const config = require('../config');
+const { isStaff } = require('../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -8,21 +8,21 @@ module.exports = {
     .setDescription('Open the Moderation Panel (Staff only)'),
 
   async execute(interaction) {
-    const { member } = interaction;
-
-    if (!isStaff(member)) {
+    if (!isStaff(interaction.member)) {
       return interaction.reply({
-        embeds: [new EmbedBuilder().setTitle('🔒 Access Denied').setDescription('Staff permissions required.').setColor(config.colors.error)],
+        embeds: [new EmbedBuilder().setTitle('Staff Only').setDescription('You do not have permission to use this.').setColor(config.colors.error)],
         ephemeral: true,
       });
     }
 
-    const staffRole = getStaffRole(member);
+    const { getStaffRole } = require('../utils/permissions');
+    const staffRole = getStaffRole(interaction.member);
+    const divider = '\u2501'.repeat(32);
 
     const embed = new EmbedBuilder()
-      .setTitle('🛡️ Moderation Panel')
+      .setTitle('Moderation Panel')
       .setColor(config.colors.moderation)
-      .setDescription(`**Your Level:** ${staffRole?.label || 'Staff'}\n\nSelect a member below to moderate.`)
+      .setDescription(`${divider}\n**Your Level:** ${staffRole?.label || 'Staff'}\n\nSelect a member below to moderate.\n${divider}`)
       .setTimestamp();
 
     const userSelect = new ActionRowBuilder().addComponents(

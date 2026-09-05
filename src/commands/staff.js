@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
-const { isStaff, getStaffRole } = require('../utils/permissions');
 const config = require('../config');
+const { isStaff } = require('../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -8,36 +8,34 @@ module.exports = {
     .setDescription('Open the Staff Panel (Staff only)'),
 
   async execute(interaction) {
-    const { member } = interaction;
-
-    if (!isStaff(member)) {
+    if (!isStaff(interaction.member)) {
       return interaction.reply({
-        embeds: [new EmbedBuilder().setTitle('🔒 Access Denied').setDescription('Staff permissions required.').setColor(config.colors.error)],
+        embeds: [new EmbedBuilder().setTitle('Staff Only').setDescription('You do not have permission to use this.').setColor(config.colors.error)],
         ephemeral: true,
       });
     }
 
-    const staffRole = getStaffRole(member);
+    const divider = '\u2501'.repeat(32);
 
     const embed = new EmbedBuilder()
-      .setTitle('👨‍💼 Staff Panel')
+      .setTitle('Staff Panel')
       .setColor(config.colors.staff)
-      .setDescription(`**Your Level:** ${staffRole?.label || 'Staff'}\n\nSelect a category to manage.`)
+      .setDescription(`${divider}\nSelect a category below.\n${divider}`)
       .setTimestamp();
 
     const select = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId('staff_panel_select')
-        .setPlaceholder('Choose a category...')
+        .setPlaceholder('Select a category...')
         .addOptions([
-          { label: 'Moderation', value: 'moderation', emoji: '🛡️' },
-          { label: 'Cases', value: 'cases', emoji: '📋' },
-          { label: 'Reports', value: 'reports', emoji: '🚨' },
-          { label: 'Tickets', value: 'tickets', emoji: '🎫' },
-          { label: 'Security', value: 'security', emoji: '🔒' },
-          { label: 'Economy', value: 'economy', emoji: '💰' },
-          { label: 'Applications', value: 'applications', emoji: '📋' },
-          { label: 'Logs', value: 'logs', emoji: '📜' },
+          { label: 'Moderation', value: 'moderation', description: 'Moderation tools' },
+          { label: 'Cases', value: 'cases', description: 'View and manage cases' },
+          { label: 'Reports', value: 'reports', description: 'User reports' },
+          { label: 'Tickets', value: 'tickets', description: 'Support tickets' },
+          { label: 'Security', value: 'security', description: 'Security controls' },
+          { label: 'Economy', value: 'economy', description: 'Economy management' },
+          { label: 'Applications', value: 'applications', description: 'Staff and partnership apps' },
+          { label: 'Logs', value: 'logs', description: 'View server logs' },
         ])
     );
 

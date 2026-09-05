@@ -4,28 +4,33 @@ const config = require('../config');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('help')
-    .setDescription('View all NEXAVERSE commands'),
+    .setDescription('Show all NEXAVERSE commands'),
 
   async execute(interaction) {
+    const divider = '\u2501'.repeat(32);
+
     const embed = new EmbedBuilder()
-      .setTitle('NEXAVERSE Commands')
+      .setTitle('NEXAVERSE Help')
       .setColor(config.colors.primary)
-      .setDescription('Select a category below to see available commands.')
-      .addFields(
-        { name: 'Games', value: '`/games` — Games arcade', inline: true },
-        { name: 'Account', value: '`/account` — Profile & stats', inline: true },
-        { name: 'Wallet', value: '`/wallet` — Wallet & transfers', inline: true },
-        { name: 'Moderation', value: '`/moderation` — Staff mod tools', inline: true },
-        { name: 'Staff', value: '`/staff` — Staff panel', inline: true },
-        { name: 'Stats', value: '`/stats` — Server statistics', inline: true },
-        { name: 'Poll', value: '`/poll` — Create polls', inline: true },
-        { name: 'Verify', value: '`/verify` — Verify account', inline: true },
-        { name: 'Config', value: '`/config` — Server config (Admin)', inline: true },
-        { name: 'Ping', value: '`/ping` — Bot latency', inline: true },
-        { name: 'Bot Info', value: '`/botinfo` — Bot information', inline: true },
-        { name: 'Server Info', value: '`/serverinfo` — Server details', inline: true },
+      .setDescription(
+        `${divider}\n` +
+        '**Commands:**\n' +
+        '`/account` \u2014 Your account dashboard\n' +
+        '`/wallet` \u2014 Wallet and transfers\n' +
+        '`/games` \u2014 Games arcade\n' +
+        '`/moderation` \u2014 Mod tools (Staff)\n' +
+        '`/staff` \u2014 Staff panel\n' +
+        '`/verify` \u2014 Verify your account\n' +
+        '`/stats` \u2014 Server statistics\n' +
+        '`/ping` \u2014 Bot latency\n' +
+        '`/botinfo` \u2014 Bot information\n' +
+        '`/serverinfo` \u2014 Server information\n' +
+        '`/poll` \u2014 Create a poll\n' +
+        '`/config` \u2014 Server configuration (Admin)\n' +
+        `${divider}\n` +
+        'Select a category for more details.'
       )
-      .setFooter({ text: 'NEXAVERSE' })
+      .setFooter({ text: 'NEXAVERSE Help' })
       .setTimestamp();
 
     const select = new ActionRowBuilder().addComponents(
@@ -33,11 +38,10 @@ module.exports = {
         .setCustomId('help_category_select')
         .setPlaceholder('Select a category...')
         .addOptions([
-          { label: 'General', value: 'general', emoji: '📖' },
-          { label: 'Moderation', value: 'moderation', emoji: '🛡️' },
-          { label: 'Staff', value: 'staff', emoji: '👨‍💼' },
-          { label: 'Utility', value: 'utility', emoji: '⚙️' },
-          { label: 'Social', value: 'social', emoji: '🤝' },
+          { label: 'General', value: 'general', description: 'Account, wallet, games' },
+          { label: 'Moderation', value: 'moderation', description: 'Mod tools and staff' },
+          { label: 'Utility', value: 'utility', description: 'Ping, info, verify, poll' },
+          { label: 'Staff', value: 'staff', description: 'Staff panel and config' },
         ])
     );
 

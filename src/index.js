@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Partials, ActivityType } = require('discord.js');
 const { initDatabase } = require('./database/init');
 const config = require('./config');
 
@@ -91,7 +91,47 @@ process.on('uncaughtException', (error) => {
 });
 
 // Login
-client.login(config.token).catch(err => {
+client.login(config.token).then(() => {
+  // Bot online status notification
+  if (config.statusChannelId) {
+    client.once('ready', async () => {
+      try {
+        const channel = await client.channels.fetch(config.statusChannelId).catch(() => null);
+        if (channel && channel.isTextBased()) {
+          const embed = new (require('discord.js').EmbedBuilder)()
+            .setTitle('NEXAVERSE Online')
+            .setDescription(`Bot is now online and ready.\nTime: <t:${Math.floor(Date.now()/1000)}:F>`)
+            .setColor('#2ecc71')
+            .setTimestamp();
+          await channel.send({ embeds: [embed] }).catch(() => {});
+        }
+      } catch (e) {}
+    });
+  }
+
+  // Graceful shutdown - post offline status
+  const shutdown = async (signal) => {
+    console.log(`[SHUTDOWN] Received ${signal}, posting offline status...`);
+    if (config.statusChannelId && client.isReady()) {
+      try {
+        const channel = await client.channels.fetch(config.statusChannelId).catch(() => null);
+        if (channel && channel.isTextBased()) {
+          const embed = new (require('discord.js').EmbedBuilder)()
+            .setTitle('NEXAVERSE Offline')
+            .setDescription(`Bot has gone offline.\nTime: <t:${Math.floor(Date.now()/1000)}:F>`)
+            .setColor('#e74c3c')
+            .setTimestamp();
+          await channel.send({ embeds: [embed] }).catch(() => {});
+        }
+      } catch (e) {}
+    }
+    client.destroy();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+}).catch(err => {
   console.error('[FATAL] Failed to login:', err.message);
   process.exit(1);
 });

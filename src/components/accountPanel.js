@@ -1,531 +1,305 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, UserSelectMenuBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
-const { getUser, getBalance, getTransactions, claimDaily, claimWeekly } = require('../systems/economy');
-const { getXpInfo } = require('../systems/xp');
-const { getRepInfo } = require('../systems/reputation');
-const { getInviteStats, getTopInviters } = require('../systems/invites');
-const { getAchievements, getAllAchievements } = require('../systems/achievements');
-const { formatCredits, formatTimestamp, backToMainMenu, getRankForXp, getEffectiveMaxTransfer, getEffectiveMaxBet } = require('../utils/helpers');
-const { getMemberRoleName } = require('../utils/permissions');
-const { log } = require('../systems/logging');
-const { generateProfileCard, progressBar } = require('../utils/images');
+const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { formatCredits, formatTimestamp, backToMainMenu } = require('../utils/helpers');
 const config = require('../config');
 
 module.exports = {
   selectMenus: {
     account_select: handleAccountSelect,
-    economy_select: handleEconomySelect,
     wallet_action_select: handleWalletAction,
-    transfer_user_select: handleTransferUserSelect,
   },
-  buttons: {
-    nav_account_back: (interaction) => backToMainMenu(interaction),
-  },
+  buttons: {},
+  modals: {},
 };
 
-function backRow(customId = 'nav_account_back') {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(customId).setLabel('\u2190 Back').setStyle(ButtonStyle.Secondary)
-  );
-}
-
 function divider() {
-  return '\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501';
+  return '\u2501'.repeat(32);
 }
 
 async function handleAccountSelect(interaction) {
-  const value = interaction.values[0];
-  const { user, guild, member } = interaction;
-  const guildId = guild.id;
+  const option = interaction.values[0];
 
   try {
-    switch (value) {
-      case 'profile': {
-        const userData = getUser(user.id, guildId);
-        const xpInfo = getXpInfo(user.id, guildId);
-        const rank = getRankForXp(userData.total_xp);
-        const roleName = getMemberRoleName(member);
-        const repInfo = getRepInfo(user.id, guildId);
-
-        const attachment = await generateProfileCard(user, userData, xpInfo, rank, repInfo, roleName);
-
-        const embed = new EmbedBuilder()
-          .setAuthor({ name: `${user.username}'s Profile`, iconURL: user.displayAvatarURL({ dynamic: true }) })
-          .setColor(rank.color)
-          .setImage('attachment://profile.png')
-          .setFooter({ text: `NEXAVERSE \u2022 Profile Card` })
-          .setTimestamp();
-
-        await interaction.update({ embeds: [embed], files: [attachment], components: [backRow()] });
+    switch (option) {
+      case 'economy':
+        await showEconomyPanel(interaction);
         break;
-      }
-
-      case 'economy': {
-        const userData = getUser(user.id, guildId);
-        const repInfo = getRepInfo(user.id, guildId);
-
-        const embed = new EmbedBuilder()
-          .setTitle('Economy Overview')
-          .setColor(config.colors.economy)
-          .setDescription(`${divider()}\n**Balance:** ${formatCredits(userData.credits)}\n**Reputation:** ${repInfo.score}/100 \u00b7 ${repInfo.level.label}\n${divider()}`)
-          .addFields(
-            { name: 'Daily', value: `${formatCredits(config.economy.dailyReward)} / day`, inline: true },
-            { name: 'Weekly', value: `${formatCredits(config.economy.weeklyReward)} / week`, inline: true },
-            { name: 'Transfer Fee', value: `${config.economy.transferFeePercent}%`, inline: true },
-          )
-          .setFooter({ text: 'Claim rewards to earn credits' })
-          .setTimestamp();
-
-        const select = new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId('economy_select')
-            .setPlaceholder('Choose an action...')
-            .addOptions([
-              { label: 'Claim Daily', value: 'daily', description: 'Claim daily reward' },
-              { label: 'Claim Weekly', value: 'weekly', description: 'Claim weekly reward' },
-              { label: 'Transfer', value: 'transfer', description: 'Send credits to a user' },
-              { label: 'Transactions', value: 'transactions', description: 'View transactions' },
-              { label: 'Leaderboard', value: 'leaderboard', description: 'Top earners' },
-            ])
-        );
-
-        await interaction.update({ embeds: [embed], components: [select, backRow()] });
+      case 'activity':
+        await showActivityPanel(interaction);
         break;
-      }
-
-      case 'activity': {
-        const userData = getUser(user.id, guildId);
-
-        const embed = new EmbedBuilder()
-          .setTitle('Activity')
-          .setColor(config.colors.info)
-          .setDescription(`${divider()}\nYour server activity summary\n${divider()}`)
-          .addFields(
-            { name: 'Messages', value: `**${userData.messages.toLocaleString()}**`, inline: true },
-            { name: 'Today', value: `**${userData.daily_messages}**`, inline: true },
-            { name: 'This Week', value: `**${userData.weekly_messages}**`, inline: true },
-            { name: 'This Month', value: `**${userData.monthly_messages}**`, inline: true },
-            { name: 'Events Joined', value: `**${userData.events_joined}**`, inline: true },
-            { name: 'Events Won', value: `**${userData.events_won}**`, inline: true },
-            { name: 'Streak', value: `**${userData.streak_days} days**`, inline: true },
-          )
-          .setFooter({ text: 'Keep chatting to earn XP' })
-          .setTimestamp();
-
-        await interaction.update({ embeds: [embed], components: [backRow()] });
+      case 'reputation':
+        await showReputationPanel(interaction);
         break;
-      }
-
-      case 'reputation': {
-        const repInfo = getRepInfo(user.id, guildId);
-        const repBar = progressBar(repInfo.score, 100, 20);
-
-        const embed = new EmbedBuilder()
-          .setTitle('Reputation')
-          .setColor(repInfo.level.color)
-          .setDescription(`${divider()}\n**Score:** ${repInfo.score}/100\n**Level:** ${repInfo.level.label}\n**Bar:** ${repBar}\n${divider()}`)
-          .setTimestamp();
-
-        if (repInfo.restrictions.length > 0) {
-          embed.addFields({ name: 'Active Restrictions', value: repInfo.restrictions.map(r => `\u2022 ${r.replace(/_/g, ' ')}`).join('\n') });
-        } else {
-          embed.addFields({ name: 'Status', value: 'No restrictions \u2014 full access to all features' });
-        }
-
-        await interaction.update({ embeds: [embed], components: [backRow()] });
+      case 'achievements':
+        await showAchievementsPanel(interaction);
         break;
-      }
-
-      case 'achievements': {
-        const unlocked = getAchievements(user.id, guildId);
-        const all = getAllAchievements();
-        const percent = all.length > 0 ? Math.floor((unlocked.length / all.length) * 100) : 0;
-
-        const embed = new EmbedBuilder()
-          .setTitle(`Achievements \u2014 ${unlocked.length}/${all.length} (${percent}%)`)
-          .setColor(config.colors.achievement)
-          .setDescription(`${divider()}\n${progressBar(unlocked.length, all.length, 25)} ${percent}%\n${divider()}`)
-          .setTimestamp();
-
-        const unlockedList = all.filter(a => unlocked.includes(a.id));
-        const lockedList = all.filter(a => !unlocked.includes(a.id));
-
-        if (unlockedList.length > 0) {
-          embed.addFields({
-            name: 'Unlocked',
-            value: unlockedList.map(a => `${a.icon} ${a.name} \u2014 ${a.description}`).join('\n').substring(0, 1024),
-          });
-        }
-        if (lockedList.length > 0) {
-          embed.addFields({
-            name: 'Locked',
-            value: lockedList.map(a => `${a.name}`).join('\n').substring(0, 1024),
-          });
-        }
-
-        await interaction.update({ embeds: [embed], components: [backRow()] });
+      case 'transactions':
+        await showTransactionsPanel(interaction);
         break;
-      }
-
-      case 'transactions': {
-        const transactions = getTransactions(user.id, 10);
-
-        if (transactions.length === 0) {
-          return interaction.update({ embeds: [
-            new EmbedBuilder().setTitle('Transactions').setDescription('No transactions yet.\n\nStart earning credits by claiming daily rewards or playing games!').setColor(config.colors.info)
-          ], components: [backRow()] });
-        }
-
-        const embed = new EmbedBuilder()
-          .setTitle('Recent Transactions')
-          .setColor(config.colors.economy)
-          .setDescription(`${divider()}\nYour last ${transactions.length} transactions\n${divider()}`)
-          .setTimestamp();
-
-        const typeLabels = {
-          'transfer': 'Transfer', 'daily_reward': 'Daily Reward', 'weekly_reward': 'Weekly Reward',
-          'game_payout': 'Game Win', 'game_loss': 'Game Loss', 'giveaway_reward': 'Giveaway',
-          'event_reward': 'Event Reward', 'shop_purchase': 'Shop', 'admin_adjustment': 'Admin',
-          'refund': 'Refund', 'reversal': 'Reversal',
-        };
-
-        for (const t of transactions) {
-          const label = typeLabels[t.type] || t.type;
-          const sign = t.amount > 0 ? '+' : '';
-          embed.addFields({
-            name: `${t.id}`,
-            value: `**${label}**\n${sign}${formatCredits(t.amount)}\n${formatTimestamp(t.created_at)}`,
-            inline: true,
-          });
-        }
-
-        await interaction.update({ embeds: [embed], components: [backRow()] });
+      case 'invites':
+        await showInvitesPanel(interaction);
         break;
-      }
-
-      case 'invites': {
-        const stats = getInviteStats(user.id, guildId);
-        const topInviters = getTopInviters(guildId, 5);
-
-        const embed = new EmbedBuilder()
-          .setTitle('Invite Stats')
-          .setColor(config.colors.info)
-          .setDescription(`${divider()}\nYour invite performance\n${divider()}`)
-          .addFields(
-            { name: 'Valid', value: `**${stats.valid_invites}**`, inline: true },
-            { name: 'Total', value: `**${stats.total_invites}**`, inline: true },
-            { name: 'Leaves', value: `**${stats.leaves}**`, inline: true },
-          )
-          .setTimestamp();
-
-        if (topInviters.length > 0) {
-          const leaderboard = topInviters.map((inv, i) => {
-            const medals = ['1st', '2nd', '3rd'];
-            const medal = i < 3 ? medals[i] : `#${i + 1}`;
-            return `${medal} <@${inv.user_id}> \u2014 ${inv.valid_invites} valid`;
-          }).join('\n');
-          embed.addFields({ name: 'Top Inviters', value: leaderboard });
-        }
-
-        await interaction.update({ embeds: [embed], components: [backRow()] });
-        break;
-      }
+      default:
+        await interaction.update({ embeds: [new EmbedBuilder().setTitle('Coming Soon').setDescription('This panel is under development.').setColor(config.colors.primary)], components: [] });
     }
   } catch (error) {
-    console.error('[ACCOUNT] Error:', error.message);
-    await interaction.update({ embeds: [
-      new EmbedBuilder().setTitle('Error').setDescription('Something went wrong. Please try again.').setColor(config.colors.error)
-    ], components: [backRow()] });
+    console.error('[ACCOUNT PANEL] Error:', error.message);
+    await interaction.update({ embeds: [new EmbedBuilder().setTitle('Error').setDescription('Failed to load panel.').setColor(config.colors.error)], components: [] }).catch(() => {});
   }
 }
+
+async function showEconomyPanel(interaction) {
+  const { getUser } = require('../systems/economy');
+  const { getRepInfo } = require('../systems/reputation');
+  const { formatCredits, getEffectiveMaxTransfer } = require('../utils/helpers');
+
+  const userData = getUser(interaction.user.id, interaction.guild.id);
+  const repInfo = getRepInfo(interaction.user.id, interaction.guild.id);
+  const maxTransfer = getEffectiveMaxTransfer(userData.reputation);
+
+  const embed = new EmbedBuilder()
+    .setTitle('Economy')
+    .setColor(config.colors.economy)
+    .setDescription(
+      `${divider()}\n` +
+      `**Balance:** ${formatCredits(userData.credits)}\n` +
+      `**Reputation:** ${repInfo.score}/100 \u00b7 ${repInfo.level.label}\n` +
+      `**Max Transfer:** ${formatCredits(maxTransfer)}\n` +
+      `**Transfer Fee:** ${config.economy.transferFeePercent}%\n` +
+      `${divider()}\n` +
+      `**Daily Reward:** ${formatCredits(config.economy.dailyReward)}\n` +
+      `**Weekly Reward:** ${formatCredits(config.economy.weeklyReward)}\n` +
+      `${divider()}\n` +
+      `Use `/wallet` for full wallet access.`
+    )
+    .setTimestamp();
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('nav_account_back').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({ embeds: [embed], components: [backRow] });
+}
+
+async function showActivityPanel(interaction) {
+  const { getUser } = require('../systems/economy');
+
+  const userData = getUser(interaction.user.id, interaction.guild.id);
+
+  const embed = new EmbedBuilder()
+    .setTitle('Activity')
+    .setColor(config.colors.primary)
+    .setDescription(
+      `${divider()}\n` +
+      `**Total Messages:** ${userData.messages}\n` +
+      `**Daily Messages:** ${userData.daily_messages || 0}\n` +
+      `**Weekly Messages:** ${userData.weekly_messages || 0}\n` +
+      `**Monthly Messages:** ${userData.monthly_messages || 0}\n` +
+      `${divider()}`
+    )
+    .setTimestamp();
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('nav_account_back').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({ embeds: [embed], components: [backRow] });
+}
+
+async function showReputationPanel(interaction) {
+  const { getRepInfo } = require('../systems/reputation');
+  const repInfo = getRepInfo(interaction.user.id, interaction.guild.id);
+
+  const restrictions = repInfo.level.restrictions.length > 0
+    ? repInfo.level.restrictions.join('\n')
+    : 'None';
+
+  const embed = new EmbedBuilder()
+    .setTitle('Reputation')
+    .setColor(config.colors.primary)
+    .setDescription(
+      `${divider()}\n` +
+      `**Score:** ${repInfo.score}/100\n` +
+      `**Level:** ${repInfo.level.label}\n` +
+      `${divider()}\n` +
+      `**Restrictions:**\n${restrictions}\n` +
+      `${divider()}\n` +
+      'Reputation recovers slowly through good behavior.'
+    )
+    .setTimestamp();
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('nav_account_back').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({ embeds: [embed], components: [backRow] });
+}
+
+async function showAchievementsPanel(interaction) {
+  const { getAchievements, getAllAchievements } = require('../systems/achievements');
+  const unlocked = getAchievements(interaction.user.id, interaction.guild.id);
+  const all = getAllAchievements();
+
+  let desc = `${divider()}\n`;
+  desc += `**Unlocked:** ${unlocked.length}/${all.length}\n`;
+  desc += `${divider()}\n`;
+
+  if (unlocked.length === 0) {
+    desc += 'No achievements unlocked yet.';
+  } else {
+    for (const a of unlocked.slice(0, 10)) {
+      desc += `${a.icon || ''} **${a.name}** \u2014 ${a.description}\n`;
+    }
+    if (unlocked.length > 10) desc += `...and ${unlocked.length - 10} more`;
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle('Achievements')
+    .setColor(config.colors.achievement)
+    .setDescription(desc)
+    .setTimestamp();
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('nav_account_back').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({ embeds: [embed], components: [backRow] });
+}
+
+async function showTransactionsPanel(interaction) {
+  const { getTransactions } = require('../systems/economy');
+
+  const txns = getTransactions(interaction.user.id, interaction.guild.id, 10);
+
+  let desc = `${divider()}\n`;
+  if (txns.length === 0) {
+    desc += 'No transactions yet.';
+  } else {
+    for (const tx of txns) {
+      const typeEmoji = { transfer: '\u{1F4B8}', daily: '\u{1F4C5}', weekly: '\u{1F4C6}', game: '\u{1F3AE}', giveaway: '\u{1F389}', event: '\u{1F386}', admin: '\u2699\uFE0F', refund: '\u{1F504}' }[tx.type] || '\u{1F4B3}';
+      desc += `${typeEmoji} **${tx.type}** \u2014 ${tx.amount > 0 ? '+' : ''}${tx.amount} credits\n`;
+    }
+  }
+  desc += `\n${divider()}`;
+
+  const embed = new EmbedBuilder()
+    .setTitle('Transactions')
+    .setColor(config.colors.economy)
+    .setDescription(desc)
+    .setTimestamp();
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('nav_account_back').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({ embeds: [embed], components: [backRow] });
+}
+
+async function showInvitesPanel(interaction) {
+  const { getInviteStats } = require('../systems/invites');
+
+  const stats = getInviteStats(interaction.user.id, interaction.guild.id);
+
+  const embed = new EmbedBuilder()
+    .setTitle('Invites')
+    .setColor(config.colors.primary)
+    .setDescription(
+      `${divider()}\n` +
+      `**Total Invites:** ${stats.total || 0}\n` +
+      `**Valid Invites:** ${stats.valid || 0}\n` +
+      `**Members Who Left:** ${stats.left || 0}\n` +
+      `${divider()}`
+    )
+    .setTimestamp();
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('nav_account_back').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({ embeds: [embed], components: [backRow] });
+}
+
+// === WALLET ACTION HANDLER ===
 
 async function handleWalletAction(interaction) {
+  const action = interaction.values[0];
+
   try {
-    const value = interaction.values[0];
-    const { user, guild } = interaction;
-
-    switch (value) {
-      case 'transfer': {
+    switch (action) {
+      case 'daily': {
+        const { claimDaily } = require('../systems/economy');
+        const { formatCredits } = require('../utils/helpers');
+        const result = claimDaily(interaction.user.id, interaction.guild.id);
         const embed = new EmbedBuilder()
-          .setTitle('Transfer Credits')
-          .setDescription('Select the user you want to send credits to.')
-          .setColor(config.colors.economy)
+          .setTitle(result.success ? 'Daily Claimed' : 'Cannot Claim')
+          .setDescription(result.success ? `You claimed **${formatCredits(result.amount)}** credits.` : result.reason)
+          .setColor(result.success ? config.colors.success : config.colors.error)
           .setTimestamp();
-
+        await interaction.update({ embeds: [embed], components: [] });
+        break;
+      }
+      case 'weekly': {
+        const { claimWeekly } = require('../systems/economy');
+        const { formatCredits } = require('../utils/helpers');
+        const result = claimWeekly(interaction.user.id, interaction.guild.id);
+        const embed = new EmbedBuilder()
+          .setTitle(result.success ? 'Weekly Claimed' : 'Cannot Claim')
+          .setDescription(result.success ? `You claimed **${formatCredits(result.amount)}** credits.` : result.reason)
+          .setColor(result.success ? config.colors.success : config.colors.error)
+          .setTimestamp();
+        await interaction.update({ embeds: [embed], components: [] });
+        break;
+      }
+      case 'transfer': {
+        // Show UserSelectMenu to pick recipient
         const userSelect = new ActionRowBuilder().addComponents(
-          new UserSelectMenuBuilder()
-            .setCustomId('transfer_user_select')
+          new (require('discord.js').UserSelectMenuBuilder)()
+            .setCustomId(`wallet_transfer_select_${interaction.user.id}`)
             .setPlaceholder('Select recipient...')
             .setMinValues(1)
             .setMaxValues(1)
         );
-
-        await interaction.update({ embeds: [embed], components: [userSelect, backRow()] });
-        break;
-      }
-
-      case 'daily': {
-        const result = claimDaily(user.id, guild.id);
-        if (result.success) {
-          await log(guild, 'economy', 'Daily Claimed', { actor: user.id, amount: result.reward });
-          await interaction.update({ embeds: [
-            new EmbedBuilder()
-              .setTitle('Daily Reward Claimed')
-              .setDescription(`${divider()}\n**Reward:** ${formatCredits(result.reward)}\n**New Balance:** ${formatCredits(result.balance)}\n${divider()}`)
-              .setColor(config.colors.success)
-              .setTimestamp()
-          ], components: [backRow()] });
-        } else {
-          await interaction.update({ embeds: [
-            new EmbedBuilder().setTitle('Daily Reward').setDescription(result.error || 'Already claimed today. Come back tomorrow!').setColor(config.colors.warning)
-          ], components: [backRow()] });
-        }
-        break;
-      }
-
-      case 'weekly': {
-        const result = claimWeekly(user.id, guild.id);
-        if (result.success) {
-          await log(guild, 'economy', 'Weekly Claimed', { actor: user.id, amount: result.reward });
-          await interaction.update({ embeds: [
-            new EmbedBuilder()
-              .setTitle('Weekly Reward Claimed')
-              .setDescription(`${divider()}\n**Reward:** ${formatCredits(result.reward)}\n**New Balance:** ${formatCredits(result.balance)}\n${divider()}`)
-              .setColor(config.colors.success)
-              .setTimestamp()
-          ], components: [backRow()] });
-        } else {
-          await interaction.update({ embeds: [
-            new EmbedBuilder().setTitle('Weekly Reward').setDescription(result.error || 'Already claimed this week!').setColor(config.colors.warning)
-          ], components: [backRow()] });
-        }
-        break;
-      }
-
-      case 'transactions': {
-        const transactions = getTransactions(user.id, 10);
-        if (transactions.length === 0) {
-          return interaction.update({ embeds: [
-            new EmbedBuilder().setTitle('Transactions').setDescription('No transactions yet.').setColor(config.colors.info)
-          ], components: [backRow()] });
-        }
-
-        const typeLabels = {
-          'transfer': 'Transfer', 'daily_reward': 'Daily', 'weekly_reward': 'Weekly',
-          'game_payout': 'Game Win', 'game_loss': 'Game Loss', 'giveaway_reward': 'Giveaway',
-          'event_reward': 'Event', 'shop_purchase': 'Shop', 'admin_adjustment': 'Admin',
-        };
-
-        const embed = new EmbedBuilder()
-          .setTitle('Recent Transactions')
-          .setColor(config.colors.economy)
-          .setDescription(`${divider()}\nLast ${transactions.length} transactions\n${divider()}`)
-          .setTimestamp();
-
-        for (const t of transactions) {
-          const label = typeLabels[t.type] || t.type;
-          const sign = t.amount > 0 ? '+' : '';
-          embed.addFields({
-            name: `${t.id}`,
-            value: `**${label}**\n${sign}${formatCredits(t.amount)}\n${formatTimestamp(t.created_at)}`,
-            inline: true,
-          });
-        }
-
-        await interaction.update({ embeds: [embed], components: [backRow()] });
-        break;
-      }
-
-      case 'leaderboard': {
-        const { getDb } = require('../database/init');
-        const db = getDb();
-        const top = db.prepare('SELECT user_id, credits, level FROM users WHERE guild_id = ? ORDER BY credits DESC LIMIT 10').all(guild.id);
-
-        if (top.length === 0) {
-          return interaction.update({ embeds: [
-            new EmbedBuilder().setTitle('Leaderboard').setDescription('No data yet.').setColor(config.colors.info)
-          ], components: [backRow()] });
-        }
-
-        const medals = ['1st', '2nd', '3rd'];
-        const leaderboard = top.map((u, i) => {
-          const medal = i < 3 ? medals[i] : `#${i + 1}`;
-          return `${medal} <@${u.user_id}> \u2014 **${formatCredits(u.credits)}** (Lv.${u.level})`;
-        }).join('\n');
-
-        await interaction.update({ embeds: [
-          new EmbedBuilder()
-            .setTitle('Economy Leaderboard')
-            .setDescription(`${divider()}\n${leaderboard}\n${divider()}`)
-            .setColor(config.colors.economy)
-            .setTimestamp()
-        ], components: [backRow()] });
-        break;
-      }
-    }
-  } catch (error) {
-    console.error('[WALLET] Error:', error.message);
-    await interaction.update({ embeds: [
-      new EmbedBuilder().setTitle('Error').setDescription('Something went wrong.').setColor(config.colors.error)
-    ], components: [backRow()] });
-  }
-}
-
-// Handle UserSelectMenu for transfers
-async function handleTransferUserSelect(interaction) {
-  try {
-    const selectedUserId = interaction.values[0];
-
-    if (selectedUserId === interaction.user.id) {
-      return interaction.update({ embeds: [
-        new EmbedBuilder().setTitle('Self-Transfer').setDescription('You cannot transfer credits to yourself.').setColor(config.colors.error)
-      ], components: [backRow()] });
-    }
-
-    const modal = new ModalBuilder()
-      .setCustomId(`transfer_modal_${interaction.user.id}_${selectedUserId}`)
-      .setTitle('Transfer Credits')
-      .addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('amount').setLabel(`Amount to send to <@${selectedUserId}>`).setPlaceholder('Enter amount (e.g. 500)').setStyle(TextInputStyle.Short).setRequired(true)
-        ),
-      );
-    await interaction.showModal(modal);
-  } catch (error) {
-    console.error('[TRANSFER_SELECT] Error:', error.message);
-    await interaction.update({ embeds: [
-      new EmbedBuilder().setTitle('Error').setDescription('Something went wrong.').setColor(config.colors.error)
-    ], components: [backRow()] });
-  }
-}
-
-// Handle economy select (daily, weekly, transfer, shop, etc.)
-async function handleEconomySelect(interaction) {
-  try {
-    const { user, guild } = interaction;
-    const guildId = guild.id;
-    const value = interaction.values[0];
-
-    switch (value) {
-      case 'daily': {
-        const result = claimDaily(user.id, guildId);
-        if (result.success) {
-          await log(guild, 'economy', 'Daily Claimed', { actor: user.id, amount: result.reward });
-          await interaction.update({ embeds: [
-            new EmbedBuilder()
-              .setTitle('Daily Reward Claimed')
-              .setDescription(`${divider()}\n**Reward:** ${formatCredits(result.reward)}\n**New Balance:** ${formatCredits(result.balance)}\n${divider()}`)
-              .setColor(config.colors.success)
-              .setTimestamp()
-          ], components: [backRow()] });
-        } else {
-          await interaction.update({ embeds: [
-            new EmbedBuilder().setTitle('Daily Reward').setDescription(result.error || 'Already claimed today!').setColor(config.colors.warning)
-          ], components: [backRow()] });
-        }
-        break;
-      }
-
-      case 'weekly': {
-        const result = claimWeekly(user.id, guildId);
-        if (result.success) {
-          await log(guild, 'economy', 'Weekly Claimed', { actor: user.id, amount: result.reward });
-          await interaction.update({ embeds: [
-            new EmbedBuilder()
-              .setTitle('Weekly Reward Claimed')
-              .setDescription(`${divider()}\n**Reward:** ${formatCredits(result.reward)}\n**New Balance:** ${formatCredits(result.balance)}\n${divider()}`)
-              .setColor(config.colors.success)
-              .setTimestamp()
-          ], components: [backRow()] });
-        } else {
-          await interaction.update({ embeds: [
-            new EmbedBuilder().setTitle('Weekly Reward').setDescription(result.error || 'Already claimed this week!').setColor(config.colors.warning)
-          ], components: [backRow()] });
-        }
-        break;
-      }
-
-      case 'transfer': {
         const embed = new EmbedBuilder()
           .setTitle('Transfer Credits')
-          .setDescription('Select the user you want to send credits to.')
-          .setColor(config.colors.economy);
-
-        const userSelect = new ActionRowBuilder().addComponents(
-          new UserSelectMenuBuilder()
-            .setCustomId('transfer_user_select')
-            .setPlaceholder('Select recipient...')
-            .setMinValues(1)
-            .setMaxValues(1)
-        );
-
-        await interaction.update({ embeds: [embed], components: [userSelect, backRow()] });
+          .setDescription('Select the user you want to transfer credits to.')
+          .setColor(config.colors.economy)
+          .setTimestamp();
+        await interaction.update({ embeds: [embed], components: [userSelect] });
         break;
       }
-
       case 'transactions': {
-        const transactions = getTransactions(user.id, 10);
-        if (transactions.length === 0) {
-          return interaction.update({ embeds: [
-            new EmbedBuilder().setTitle('Transactions').setDescription('No transactions yet.').setColor(config.colors.info)
-          ], components: [backRow()] });
-        }
+        await showTransactionsPanel(interaction);
+        break;
+      }
+      case 'leaderboard': {
+        const { getLeaderboard } = require('../systems/economy');
+        const { formatCredits } = require('../utils/helpers');
+        const lb = getLeaderboard(interaction.guild.id, 10);
 
-        const typeLabels = {
-          'transfer': 'Transfer', 'daily_reward': 'Daily', 'weekly_reward': 'Weekly',
-          'game_payout': 'Game Win', 'game_loss': 'Game Loss',
-        };
+        let desc = `${divider()}\n`;
+        if (lb.length === 0) {
+          desc += 'No data yet.';
+        } else {
+          const medals = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
+          for (let i = 0; i < lb.length; i++) {
+            const medal = medals[i] || `${i + 1}.`;
+            desc += `${medal} **${lb[i].username}** \u2014 ${formatCredits(lb[i].credits)}\n`;
+          }
+        }
+        desc += `\n${divider()}`;
 
         const embed = new EmbedBuilder()
-          .setTitle('Recent Transactions')
+          .setTitle('Leaderboard')
           .setColor(config.colors.economy)
-          .setDescription(`${divider()}\nLast ${transactions.length} transactions\n${divider()}`)
+          .setDescription(desc)
           .setTimestamp();
-
-        for (const t of transactions) {
-          const label = typeLabels[t.type] || t.type;
-          const sign = t.amount > 0 ? '+' : '';
-          embed.addFields({
-            name: `${t.id}`,
-            value: `**${label}**\n${sign}${formatCredits(t.amount)}\n${formatTimestamp(t.created_at)}`,
-            inline: true,
-          });
-        }
-
-        await interaction.update({ embeds: [embed], components: [backRow()] });
+        await interaction.update({ embeds: [embed], components: [] });
         break;
       }
-
-      case 'leaderboard': {
-        const { getDb } = require('../database/init');
-        const db = getDb();
-        const top = db.prepare('SELECT user_id, credits, level FROM users WHERE guild_id = ? ORDER BY credits DESC LIMIT 10').all(guildId);
-
-        if (top.length === 0) {
-          return interaction.update({ embeds: [
-            new EmbedBuilder().setTitle('Leaderboard').setDescription('No data yet.').setColor(config.colors.info)
-          ], components: [backRow()] });
-        }
-
-        const medals = ['1st', '2nd', '3rd'];
-        const leaderboard = top.map((u, i) => {
-          const medal = i < 3 ? medals[i] : `#${i + 1}`;
-          return `${medal} <@${u.user_id}> \u2014 **${formatCredits(u.credits)}** (Lv.${u.level})`;
-        }).join('\n');
-
-        await interaction.update({ embeds: [
-          new EmbedBuilder()
-            .setTitle('Economy Leaderboard')
-            .setDescription(`${divider()}\n${leaderboard}\n${divider()}`)
-            .setColor(config.colors.economy)
-            .setTimestamp()
-        ], components: [backRow()] });
-        break;
-      }
+      default:
+        await interaction.update({ embeds: [new EmbedBuilder().setTitle('Coming Soon').setDescription('This action is under development.').setColor(config.colors.primary)], components: [] });
     }
   } catch (error) {
-    console.error('[ECONOMY] Error:', error.message);
-    await interaction.update({ embeds: [
-      new EmbedBuilder().setTitle('Error').setDescription('Something went wrong.').setColor(config.colors.error)
-    ], components: [backRow()] });
+    console.error('[WALLET ACTION] Error:', error.message);
+    await interaction.update({ embeds: [new EmbedBuilder().setTitle('Error').setDescription('Something went wrong.').setColor(config.colors.error)], components: [] }).catch(() => {});
   }
 }
