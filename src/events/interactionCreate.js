@@ -93,6 +93,14 @@ module.exports = {
             await navToHelpHome(interaction);
             return;
           }
+          if (id === 'config_home') {
+            await handleConfigHome(interaction);
+            return;
+          }
+          if (id.startsWith('config_back_')) {
+            await handleConfigBack(interaction, id);
+            return;
+          }
 
           // Death Note buttons
           if (id.startsWith('dn_join_')) {
@@ -147,6 +155,9 @@ module.exports = {
           if (id === 'staff_panel_select') { await handleStaffPanelSelect(interaction); return; }
           if (id === 'help_category_select') { await handleHelpCategorySelect(interaction); return; }
           if (id === 'config_select') { await handleConfigSelect(interaction); return; }
+          if (id.startsWith('config_edit_')) { await handleConfigEditSelect(interaction, id); return; }
+          if (id === 'credits_user_select') { await handleCreditsUserSelect(interaction); return; }
+          if (id.startsWith('credits_action_')) { await handleCreditsAction(interaction, id); return; }
           if (id === 'event_admin_select') { await handleEventAdminSelect(interaction); return; }
           if (id === 'mod_user_select') { await handleModUserSelect(interaction); return; }
           if (id.startsWith('mod_action_select_')) { await handleModActionSelect(interaction, id); return; }
@@ -196,6 +207,17 @@ module.exports = {
           // Verification OTP modal
           if (id === 'verify_otp_submit') {
             await handleVerifyOTPSubmit(interaction);
+            return;
+          }
+
+          // Config setting modals: config_set_<category>_<settingKey>
+          if (id.startsWith('config_set_')) {
+            await handleConfigSetModal(interaction, id);
+            return;
+          }
+          // Credits execution modals: credits_exec_<action>_<targetId>_<staffId>
+          if (id.startsWith('credits_exec_')) {
+            await handleCreditsExecModal(interaction, id);
             return;
           }
 
@@ -1427,21 +1449,420 @@ async function navToHelpHome(interaction) {
 // === CONFIG SELECT ===
 
 async function handleConfigSelect(interaction) {
-  const { isAdmin } = require('../utils/permissions');
-  if (!isAdmin(interaction.member)) {
+  const { isAdmin, getStaffLevel } = require('../utils/permissions');
+  if (!isAdmin(interaction.member) && getStaffLevel(interaction.member) < 4) {
     return safeReply(interaction, {
-      embeds: [new EmbedBuilder().setTitle('Admin Only').setColor(config.colors.error)],
+      embeds: [new EmbedBuilder().setTitle('Access Denied').setDescription('Administrator or Head of Staff required.').setColor(config.colors.error)],
       flags: 64,
     });
   }
+
   const category = interaction.values[0];
+
+  if (category === 'credits') {
+    return showCreditsUserSelect(interaction);
+  }
+
+  const { CATEGORY_SETTINGS, getSettingValue } = require('../commands/config');
+  const cat = CATEGORY_SETTINGS[category];
+  if (!cat) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Unknown Category').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+
   const divider = '\u2501'.repeat(32);
+
+  // Build settings overview with current values
+  let desc = `${divider}\n**${cat.title} Settings**\n\n`;
+  const settingKeys = Object.keys(cat.settings);
+  for (const key of settingKeys) {
+    const s = cat.settings[key];
+    const value = getSettingValue(interaction.guild.id, key, s.default);
+    const display = s.kind === 'onoff' ? (value === '1' ? 'Enabled' : 'Disabled') : value;
+    desc += `**${s.label}** — ${display}\n`;
+  }
+  desc += `${divider}\nSelect a setting below to change it.`;
+
   const embed = new EmbedBuilder()
-    .setTitle(category)
-    .setDescription(`${divider}\nConfiguration panel for ${category}.\n${divider}`)
+    .setTitle(`NEXAVERSE · ${cat.title}`)
+    .setDescription(desc)
     .setColor(config.colors.staff)
     .setTimestamp();
-  await safeReply(interaction, { embeds: [embed] });
+
+  const settingSelect = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`config_edit_${category}`)
+      .setPlaceholder('Select a setting to edit...')
+      .addOptions(settingKeys.map(key => ({
+        label: cat.settings[key].label,
+        value: key,
+      })))
+  );
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('config_home').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({ embeds: [embed], files: [], components: [settingSelect, backRow] });
+}
+
+async function handleConfigEditSelect(interaction, customId) {
+  const { isAdmin, getStaffLevel } = require('../utils/permissions');
+  if (!isAdmin(interaction.member) && getStaffLevel(interaction.member) < 4) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Access Denied').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+
+  const category = customId.replace('config_edit_', '');
+  const { CATEGORY_SETTINGS, getSettingValue } = require('../commands/config');
+  const cat = CATEGORY_SETTINGS[category];
+  const settingKey = interaction.values[0];
+  const setting = cat.settings[settingKey];
+  if (!cat || !setting) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Unknown Setting').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+
+  const currentValue = getSettingValue(interaction.guild.id, settingKey, setting.default);
+
+  // On/off toggles flip instantly
+  if (setting.kind === 'onoff') {
+    const { setConfig } = require('../systems/config');
+    const newValue = currentValue === '1' ? '0' : '1';
+    setConfig(interaction.guild.id, `cfg_${settingKey}`, newValue);
+
+    const { log } = require('../systems/logging');
+    log(interaction.guild, 'staff', 'Setting Changed', {
+      actor: interaction.user.id,
+      reason: `${cat.title} · ${setting.label}: ${newValue === '1' ? 'Enabled' : 'Disabled'}`,
+    }).catch(() => {});
+
+    // Re-render the category view in-place
+    interaction.values = [category];
+    return handleConfigSelect(interaction);
+  }
+
+  // number/text -> open edit modal
+  const modal = new ModalBuilder()
+    .setCustomId(`config_set_${category}_${settingKey}`)
+    .setTitle(`Edit — ${setting.label}`.substring(0, 45))
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('value')
+          .setLabel(setting.kind === 'number' ? 'New Number Value' : 'New Value')
+          .setPlaceholder(`Current: ${currentValue}`)
+          .setValue(currentValue)
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
+    );
+  await interaction.showModal(modal);
+}
+
+function settingKeys(category) {
+  const { CATEGORY_SETTINGS } = require('../commands/config');
+  return Object.keys(CATEGORY_SETTINGS[category]?.settings || {});
+}
+
+async function handleConfigSetModal(interaction, customId) {
+  const { isAdmin, getStaffLevel } = require('../utils/permissions');
+  if (!isAdmin(interaction.member) && getStaffLevel(interaction.member) < 4) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Access Denied').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+
+  // config_set_<category>_<settingKey>
+  const rest = customId.replace('config_set_', '');
+  const idx = rest.indexOf('_');
+  const category = rest.substring(0, idx);
+  const settingKey = rest.substring(idx + 1);
+
+  const { CATEGORY_SETTINGS } = require('../commands/config');
+  const cat = CATEGORY_SETTINGS[category];
+  const setting = cat?.settings[settingKey];
+  if (!cat || !setting) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Unknown Setting').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+
+  const rawValue = interaction.fields.getTextInputValue('value').trim();
+  const { setConfig } = require('../systems/config');
+
+  if (setting.kind === 'number') {
+    const num = Number(rawValue);
+    if (isNaN(num) || num < 0 || num > 10000000) {
+      return safeReply(interaction, {
+        embeds: [new EmbedBuilder().setTitle('Invalid Value').setDescription('Enter a number between 0 and 10,000,000.')],
+        flags: 64,
+      });
+    }
+    setConfig(interaction.guild.id, `cfg_${settingKey}`, String(num));
+  } else {
+    if (rawValue.length > 100) {
+      return safeReply(interaction, {
+        embeds: [new EmbedBuilder().setTitle('Too Long').setDescription('Max 100 characters.')],
+        flags: 64,
+      });
+    }
+    setConfig(interaction.guild.id, `cfg_${settingKey}`, rawValue);
+  }
+
+  const { log } = require('../systems/logging');
+  log(interaction.guild, 'staff', 'Setting Changed', {
+    actor: interaction.user.id,
+    reason: `${cat.title} · ${setting.label}: ${rawValue}`,
+  }).catch(() => {});
+
+  const embed = new EmbedBuilder()
+    .setTitle('Setting Saved')
+    .setDescription(`**${setting.label}** is now set to \`${rawValue}\``)
+    .setColor(config.colors.success)
+    .setTimestamp();
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`config_back_${category}`).setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await safeReply(interaction, { embeds: [embed], components: [backRow] });
+}
+
+async function handleConfigHome(interaction) {
+  const { isAdmin, getStaffLevel } = require('../utils/permissions');
+  if (!isAdmin(interaction.member) && getStaffLevel(interaction.member) < 4) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Access Denied').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+  const { buildHomeEmbed } = require('../commands/config');
+  const { embed, select } = buildHomeEmbed(interaction.guild);
+  await interaction.update({ embeds: [embed], files: [], components: [select] });
+}
+
+async function handleConfigBack(interaction, customId) {
+  const category = customId.replace('config_back_', '');
+  // Simulate a config_select with the category pre-chosen
+  interaction.values = [category];
+  return handleConfigSelect(interaction);
+}
+
+// === CREDITS MANAGER ===
+
+async function showCreditsUserSelect(interaction) {
+  const divider = '\u2501'.repeat(32);
+  const embed = new EmbedBuilder()
+    .setTitle('NEXAVERSE · Credits Manager')
+    .setColor(config.colors.economy)
+    .setDescription(`${divider}\nSelect a member, then choose to **add**, **set**, or **remove** credits.\nAll changes are logged and the target is DM'd.\n${divider}`)
+    .setTimestamp();
+
+  const userSelect = new ActionRowBuilder().addComponents(
+    new UserSelectMenuBuilder()
+      .setCustomId('credits_user_select')
+      .setPlaceholder('Select a member...')
+      .setMinValues(1)
+      .setMaxValues(1)
+  );
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('config_home').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({ embeds: [embed], files: [], components: [userSelect, backRow] });
+}
+
+async function handleCreditsUserSelect(interaction) {
+  const { isAdmin, getStaffLevel } = require('../utils/permissions');
+  const level = getStaffLevel(interaction.member);
+  if (!isAdmin(interaction.member) && level < 4) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Access Denied').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+
+  const targetId = interaction.values[0];
+  const { getUser } = require('../systems/economy');
+  const { formatCredits } = require('../utils/helpers');
+  const userData = getUser(targetId, interaction.guild.id);
+  const target = await interaction.guild.members.fetch(targetId).catch(() => null);
+  const divider = '\u2501'.repeat(32);
+
+  const embed = new EmbedBuilder()
+    .setTitle('NEXAVERSE · Credits Manager')
+    .setColor(config.colors.economy)
+    .setDescription(
+      `${divider}\n` +
+      `**Member** ${target ? target.user.username : targetId}\n` +
+      `**Current Balance** ${formatCredits(userData.credits)}\n` +
+      `${divider}\n` +
+      `Choose an action:`
+    )
+    .setTimestamp();
+
+  const select = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`credits_action_${targetId}`)
+      .setPlaceholder('Choose an action...')
+      .addOptions([
+        { label: 'Add Credits', value: 'add', description: 'Give credits to this member' },
+        { label: 'Set Balance', value: 'set', description: 'Set exact balance' },
+        { label: 'Remove Credits', value: 'remove', description: 'Take credits from this member' },
+      ])
+  );
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('config_back_credits').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({ embeds: [embed], files: [], components: [select, backRow] });
+}
+
+async function handleCreditsAction(interaction, customId) {
+  const targetId = customId.replace('credits_action_', '');
+  const action = interaction.values[0];
+
+  const labels = { add: 'Add Credits', set: 'Set Balance', remove: 'Remove Credits' };
+  const modal = new ModalBuilder()
+    .setCustomId(`credits_exec_${action}_${targetId}_${interaction.user.id}`)
+    .setTitle(labels[action] || 'Credits')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('amount')
+          .setLabel(action === 'set' ? 'Exact New Balance' : 'Amount')
+          .setPlaceholder(action === 'set' ? 'e.g. 1000' : 'e.g. 500')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('reason')
+          .setLabel('Reason')
+          .setPlaceholder('Why is this adjustment happening')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+      )
+    );
+  await interaction.showModal(modal);
+}
+
+async function handleCreditsExecModal(interaction, customId) {
+  // credits_exec_<action>_<targetId>_<staffId>
+  const parts = customId.split('_');
+  const action = parts[2];
+  const targetId = parts[3];
+  const staffId = parts[4];
+
+  if (staffId !== interaction.user.id) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Not Your Panel').setDescription('This is not your panel.')],
+      flags: 64,
+    });
+  }
+
+  const { isAdmin, getStaffLevel } = require('../utils/permissions');
+  if (!isAdmin(interaction.member) && getStaffLevel(interaction.member) < 4) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Access Denied').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+
+  const amount = parseInt(interaction.fields.getTextInputValue('amount'));
+  const reason = interaction.fields.getTextInputValue('reason').trim();
+
+  if (isNaN(amount) || amount < 0 || amount > 10000000) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Invalid Amount').setDescription('Enter a number between 0 and 10,000,000.')],
+      flags: 64,
+    });
+  }
+
+  await interaction.deferReply();
+
+  const { getUser, updateBalance, createTransaction } = require('../systems/economy');
+  const { formatCredits } = require('../utils/helpers');
+  const { log } = require('../systems/logging');
+
+  const userData = getUser(targetId, interaction.guild.id);
+  const before = userData.credits;
+
+  if (action === 'add') {
+    updateBalance(targetId, amount, interaction.guild.id);
+    createTransaction(targetId, amount, 'admin_adjustment', { targetUserId: interaction.user.id, description: reason });
+  } else if (action === 'set') {
+    const diff = amount - before;
+    updateBalance(targetId, diff, interaction.guild.id);
+    createTransaction(targetId, diff, 'admin_adjustment', { targetUserId: interaction.user.id, description: `Set balance: ${reason}` });
+  } else if (action === 'remove') {
+    const clamped = Math.min(amount, before);
+    updateBalance(targetId, -clamped, interaction.guild.id);
+    createTransaction(targetId, -clamped, 'admin_adjustment', { targetUserId: interaction.user.id, description: `Removed: ${reason}` });
+  }
+
+  const after = getUser(targetId, interaction.guild.id).credits;
+
+  await log(interaction.guild, 'economy', `Credits ${action.charAt(0).toUpperCase() + action.slice(1)}`, {
+    actor: interaction.user.id,
+    target: targetId,
+    amount: (action === 'remove' ? -Math.min(amount, before) : action === 'set' ? after - before : amount),
+    reason,
+  }).catch(() => {});
+
+  // DM the target
+  try {
+    const { sendDMById } = require('../utils/dm');
+    const { EmbedBuilder: EB } = require('discord.js');
+    const dmEmbed = new EB()
+      .setAuthor({ name: 'NEXAVERSE Economy' })
+      .setTitle('Balance Updated')
+      .setColor(config.colors.economy)
+      .setDescription(
+        `${'\u2501'.repeat(32)}\n` +
+        `**Server** ${interaction.guild.name}\n` +
+        `**Change** ${action === 'remove' ? '-' : '+'}${formatCredits(action === 'set' ? Math.abs(after - before) : amount)}\n` +
+        `**New Balance** ${formatCredits(after)}\n` +
+        `**Reason** ${reason}\n` +
+        `**By** <@${interaction.user.id}>\n` +
+        `${'\u2501'.repeat(32)}`
+      )
+      .setTimestamp();
+    await sendDMById(interaction.guild, targetId, dmEmbed);
+  } catch (e) {}
+
+  const divider = '\u2501'.repeat(32);
+  const labels = { add: 'Credits Added', set: 'Balance Set', remove: 'Credits Removed' };
+  const embed = new EmbedBuilder()
+    .setTitle(`NEXAVERSE · ${labels[action] || 'Credits Updated'}`)
+    .setColor(config.colors.success)
+    .setDescription(
+      `${divider}\n` +
+      `**Member** <@${targetId}>\n` +
+      `**Before** ${formatCredits(before)}\n` +
+      `**After** ${formatCredits(after)}\n` +
+      `**Reason** ${reason}\n` +
+      `${divider}`
+    )
+    .setFooter({ text: `By ${interaction.user.username}` })
+    .setTimestamp();
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('config_back_credits').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.editReply({ embeds: [embed], components: [backRow] });
 }
 
 // === EVENT ADMIN SELECT ===
