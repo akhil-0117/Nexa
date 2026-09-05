@@ -253,6 +253,9 @@ module.exports = {
             if (action === 'slowmode') {
               return executeSlowmode(interaction, reason);
             }
+            if (action === 'rep') {
+              return executeReputation(interaction, targetId, reason);
+            }
 
             await executeModAction(interaction, targetId, action, reason, durationMs);
             return;
@@ -927,6 +930,7 @@ async function handleModUserSelect(interaction) {
         { label: 'Untimeout', value: 'untimeout', description: 'Remove timeout' },
         { label: 'Kick', value: 'kick', description: 'Kick from server' },
         { label: 'Ban', value: 'ban', description: 'Ban from server' },
+        { label: 'Reputation', value: 'reputation', description: 'Adjust reputation score' },
         { label: 'Purge', value: 'purge', description: 'Delete messages' },
         { label: 'Slowmode', value: 'slowmode', description: 'Set channel slowmode' },
         { label: 'Cases', value: 'cases', description: 'View mod history' },
@@ -968,6 +972,9 @@ async function handleModActionSelect(interaction, id) {
   }
   if (action === 'slowmode') {
     return showSlowmodeModal(interaction);
+  }
+  if (action === 'reputation') {
+    return showReputationModal(interaction, targetId);
   }
 
   if (!MOD_ACTIONS_REQUIRING_REASON.includes(action)) {
@@ -1087,6 +1094,21 @@ function showSlowmodeModal(interaction) {
       ),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder().setCustomId('reason').setLabel('Reason').setPlaceholder('Why is slowmode being set').setStyle(TextInputStyle.Short).setRequired(false)
+      )
+    );
+  return interaction.showModal(modal);
+}
+
+function showReputationModal(interaction, targetId) {
+  const modal = new ModalBuilder()
+    .setCustomId(`mod_execute_rep_${targetId}_${interaction.user.id}`)
+    .setTitle('Adjust Reputation')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('amount').setLabel('Amount (+ or -)').setPlaceholder('e.g. +5 or -10').setStyle(TextInputStyle.Short).setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('reason').setLabel('Reason').setPlaceholder('Why is reputation changing').setStyle(TextInputStyle.Short).setRequired(false)
       )
     );
   return interaction.showModal(modal);
@@ -1218,6 +1240,96 @@ async function executeModAction(interaction, targetId, action, reason, durationM
     .setTimestamp();
 
   await interaction.editReply({ embeds: [embed] });
+}
+
+async function executeReputation(interaction, targetId, reason) {
+  const { isStaff, getStaffLevel } = require('../utils/permissions');
+  if (!isStaff(interaction.member) || getStaffLevel(interaction.member) < 2) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Not Permitted').setDescription('Moderator level required to adjust reputation.')],
+      flags: 64,
+    });
+  }
+
+  await interaction.deferReply();
+
+  const guildId = interaction.guild.id;
+  const { getUser } = require('../systems/economy');
+  const { getReputation, setReputation } = require('../systems/reputation');
+  const { sendDMById } = require('../utils/dm');
+  const { log } = require('../systems/logging');
+
+  // Ensure the user row exists so the reputation update actually persists
+  getUser(targetId, guildId);
+
+  const raw = (interaction.fields && interaction.fields.getTextInputValue('amount')) || '';
+  const trimmed = raw.trim();
+  if (!/^[+-]?\d+$/.test(trimmed)) {
+    return interaction.editReply({
+      embeds: [err('Invalid Amount', 'Enter a whole number like +5 or -10.')],
+    });
+  }
+  const amount = parseInt(trimmed, 10);
+  if (amount === 0) {
+    return interaction.editReply({
+      embeds: [err('Invalid Amount', 'Amount cannot be zero.')],
+    });
+  }
+
+  const before = getReputation(targetId, guildId);
+  const after = setReputation(targetId, before + amount, guildId);
+  const delta = after - before;
+
+  await log(interaction.guild, 'moderation', 'Moderation \u2014 Reputation Adjusted', {
+    actor: interaction.user.id,
+    target: targetId,
+    reason: `${delta > 0 ? '+' : ''}${delta} \u2014 ${reason || 'No reason'}`,
+  }).catch(() => {});
+
+  let dmOutcome = 'not sent';
+  try {
+    const member = await interaction.guild.members.fetch(targetId).catch(() => null);
+    if (member && !member.user.bot) {
+      const dmEmbed = new EmbedBuilder()
+        .setAuthor({ name: 'NEXAVERSE Moderation' })
+        .setTitle('Reputation Updated')
+        .setColor(delta > 0 ? config.colors.success : config.colors.warning)
+        .setDescription(
+          `${'\u2501'.repeat(32)}\n` +
+          `**Server** ${interaction.guild.name}\n` +
+          `**Change** ${delta > 0 ? '+' : ''}${delta}\n` +
+          `**New Score** ${after}\n` +
+          (reason ? `**Reason** ${reason}\n` : '') +
+          `**By** <@${interaction.user.id}>\n` +
+          `${'\u2501'.repeat(32)}`
+        )
+        .setTimestamp();
+      const dm = await sendDMById(interaction.guild, targetId, dmEmbed);
+      dmOutcome = dm.sent ? 'sent' : 'failed (DMs closed)';
+    }
+  } catch (e) {}
+
+  const divider = '\u2501'.repeat(32);
+  const embed = new EmbedBuilder()
+    .setTitle('NEXAVERSE \u00b7 Reputation Updated')
+    .setColor(delta > 0 ? config.colors.success : config.colors.warning)
+    .setDescription(
+      `${divider}\n` +
+      `**Target** <@${targetId}>\n` +
+      `**Change** ${delta > 0 ? '+' : ''}${delta}\n` +
+      `**Before** ${before}\n` +
+      `**After** ${after}\n` +
+      `**Reason** ${reason || 'No reason'}\n` +
+      `**DM** ${dmOutcome}\n` +
+      `${divider}`
+    )
+    .setFooter({ text: `By ${interaction.user.username}` })
+    .setTimestamp();
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('mod_back_to_select').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+  await interaction.editReply({ embeds: [embed], components: [backRow] });
 }
 
 function err(title, description) {
