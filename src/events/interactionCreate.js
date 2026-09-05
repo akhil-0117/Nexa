@@ -505,28 +505,53 @@ async function navToAccount(interaction) {
   const { getMemberRoleName } = require('../utils/permissions');
   const { getRankForXp, formatCredits } = require('../utils/helpers');
   const { getAchievements, getAllAchievements } = require('../systems/achievements');
-  const { generateProfileCard } = require('../utils/images');
+  const { getStaffRole } = require('../utils/permissions');
+
+  const PRESIDENT_GIFS = [
+    'https://c.tenor.com/YW9ehEp6X0kAAAAd/tenor.gif',
+    'https://c.tenor.com/Z31b_uCKPVEAAAAd/tenor.gif',
+  ];
 
   const userData = getUser(interaction.user.id, interaction.guild.id);
   const xpInfo = getXpInfo(interaction.user.id, interaction.guild.id);
   const rank = getRankForXp(userData.total_xp);
   const repInfo = getRepInfo(interaction.user.id, interaction.guild.id);
   const roleName = getMemberRoleName(interaction.member);
+  const staffRole = getStaffRole(interaction.member);
 
-  const attachment = await generateProfileCard(interaction.user, userData, xpInfo, rank, repInfo, roleName);
+  const divider = '\u2501'.repeat(32);
 
   const embed = new EmbedBuilder()
-    .setAuthor({ name: `${interaction.user.username} \u2014 Account Dashboard`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
+    .setAuthor({ name: `${interaction.user.username} \u2014 Account`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
     .setColor(config.colors.primary)
-    .setImage('attachment://profile.png')
+    .setDescription(
+      `${divider}\n` +
+      `**Level:** ${xpInfo.level} \u00b7 ${rank.name}\n` +
+      `**XP:** ${xpInfo.xp}/${xpInfo.xpNeeded}\n` +
+      `**Credits:** ${formatCredits(userData.credits)}\n` +
+      `**Reputation:** ${repInfo.score}/100 \u00b7 ${repInfo.level.label}\n` +
+      `**Role:** ${roleName}\n` +
+      `**Messages:** ${userData.messages}\n` +
+      `**Games:** ${userData.games_won}W / ${userData.games_played}P\n` +
+      `**Achievements:** ${getAchievements(interaction.user.id, interaction.guild.id).length}/${getAllAchievements().length}\n` +
+      `${divider}`
+    )
     .setFooter({ text: 'Select an option below' })
     .setTimestamp();
+
+  // GIF for President/Co-President
+  if (staffRole && (staffRole.name === 'PRESIDENT' || staffRole.name === 'CO_PRESIDENT')) {
+    embed.setImage(PRESIDENT_GIFS[Math.floor(Math.random() * PRESIDENT_GIFS.length)]);
+  } else {
+    embed.setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }));
+  }
 
   const select = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId('account_select')
       .setPlaceholder('Choose an option...')
       .addOptions([
+        { label: 'Profile', value: 'profile', description: 'View your profile card' },
         { label: 'Economy', value: 'economy', description: 'Daily, weekly, transfers' },
         { label: 'Activity', value: 'activity', description: 'Message stats and streaks' },
         { label: 'Reputation', value: 'reputation', description: 'Trust score and restrictions' },
@@ -536,7 +561,7 @@ async function navToAccount(interaction) {
       ])
   );
 
-  await interaction.update({ embeds: [embed], files: [attachment], components: [select] });
+  await interaction.update({ embeds: [embed], components: [select] });
 }
 
 async function navToWallet(interaction) {
