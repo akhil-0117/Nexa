@@ -4,70 +4,91 @@ Copy everything below this line into Lovable:
 
 ---
 
-Create a single standalone profile card image at exactly 800x500 pixels with this exact design:
+Build a single standalone profile card component that renders as a PNG image at exactly 900x560 pixels.
 
-## BACKGROUND
-- Deep purple-black gradient background: start #030010 at top, blend to #0a0028 at center, end at #050015
-- Large purple radial glow centered at bottom-center of the image (rgba purple, radius ~350px)
-- Subtle purple radial glow at top-right corner
+## Style Reference
+Match the "Neon Insight Cards" aesthetic exactly:
+- Deep dark purple-black gradient background
+- Frosted glass cards with subtle purple borders
+- Purple neon glow effects at bottom center
+- Clean Inter/sans-serif typography
+- Minimal, premium feel
 
-## MAIN CARD
-- One large rounded rectangle (border-radius 24px) centered with 30px padding on all sides
-- Card background: dark glass effect (rgba 10,3,28 at 0.92 opacity fading to rgba 15,5,35 at 0.85)
-- Purple gradient border (2px width): top-left rgba(140,80,255,0.45), center rgba(100,40,200,0.15), bottom-right rgba(140,80,255,0.3)
-- Glass highlight at top: linear gradient from rgba(160,100,255,0.06) to transparent, covering top 80px
-- Bottom accent glow: linear gradient from transparent to rgba(140,50,255,0.1) at bottom 120px
+## Exact Specifications
 
-## CONTENT LAYOUT (left to right)
+### Background
+- Full canvas: deep purple-black gradient (#020008 → #080020 → #0a0028 → #030010)
+- Bottom-center radial glow: bright purple (rgba 100,30,255,0.5) fading to transparent, radius 400px
+- Top-right subtle glow: rgba(120,50,255,0.1)
 
-### Left Side: Avatar
-- Avatar circle at position (150, 250) with radius 70px
-- Purple gradient ring around avatar (6px thick): gradient from #a855f7 to #7c3aed to #6d28d9
+### Main Glass Card
+- Centered with 32px margin on all sides
+- Border radius: 20px
+- Background: frosted glass (rgba 18,8,42 at 0.85 → rgba 12,4,30 at 0.75)
+- Border: 1px solid rgba(120,60,220,0.2)
+- Top glass highlight: rgba(160,100,255,0.08) fading to transparent
+- Bottom accent glow: transparent to rgba(90,30,200,0.15)
+
+### Top Section
+- Brand label "NEXAVERSE" top-left: color rgba(160,110,255,0.45), font-weight 600, font-size 13px
+- Horizontal divider below: gradient from rgba(120,60,220,0.3) to transparent, 1px
+
+### Avatar (Left Side)
+- Circle at center-left (x=165, y=240), radius 80px
+- Purple gradient ring around avatar: 6px thick, gradient #a855f7 → #8b5cf6 → #7c3aed → #6d28d9
 - 2px dark gap between ring and avatar image
-- Purple glow behind the ring (shadow blur 40px, color #8b5cf6)
+- Outer purple glow: shadow blur 50px, color #7c3aed
+- Avatar placeholder: dark purple circle (#1a0040) with white letter "A"
 
-### Right Side: Info (starting at x=280)
-1. **Brand label** "NEXAVERSE" at top: rgba(160,100,255,0.5), font 600 weight 14px
-2. **Username** below: white, bold, 32px
-3. **Role badge** below username: small pill/rounded-rect (border-radius 6px), background rgba(120,0,255,0.25), border 1px rgba(160,100,255,0.35), text #c4b5fd bold 11px, padding 12px horizontal
-4. **Divider line** below role: gradient from rgba(130,60,255,0.3) to transparent, 1px
+### Right Side Info
+- Username: white, bold, 34px, Inter font
+- Role badge below username: pill shape (border-radius 8px), gradient background rgba(120,40,255,0.3) → rgba(80,20,180,0.15), border 1px rgba(140,80,255,0.3), text color #c4b5fd, font-weight 700, font-size 11px
 
-### Stat Cards (2 rows of 3 cards each)
-- Each card: 150x65px, border-radius 12px
-- Card background: glass effect (rgba 12,4,30 at 0.7 to rgba 18,6,40 at 0.5)
-- Card border: 1px rgba(130,60,255,0.15)
-- Bottom glow on each card: transparent to rgba(120,40,255,0.08)
-- Label text: rgba(196,181,253,0.4), font 500 10px, positioned 12px from top-left
-- Value text: white, bold, 20px, positioned 12px from top-left below label
-- Gap between cards: 12px
+### Stat Cards (2 rows of 3)
+Each card:
+- Size: 160x72px, border-radius 14px
+- Background: glass (rgba 18,8,42 at 0.85 → rgba 12,4,30 at 0.75)
+- Border: 1px rgba(120,60,220,0.2)
+- Top highlight: rgba(160,100,255,0.08)
+- Bottom glow: transparent to rgba(100,40,255,0.1)
+- Gap between cards: 14px
 
-**Row 1 labels:** Level, Rank, Credits
-**Row 2 labels:** Reputation, Messages, Games
+**Row 1:** Level "2", Rank "Newcomer", Credits "110"
+**Row 2:** Reputation "100/100", Messages "21", Games "0W"
 
-### XP Progress Bar (below stat cards)
-- Full width of right side content area
-- Height: 24px, border-radius 12px
-- Background: rgba(8,2,25,0.8) with 1px border rgba(130,60,255,0.12)
-- Fill: purple gradient #7c3aed to #6d28d9 to #8b5cf6, with glow (shadow blur 12px #7c3aed)
-- Text centered in bar: white bold 12px "XP 85 / 150"
-- Label above bar: "EXPERIENCE" in rgba(196,181,253,0.35) font 500 10px
+Label text: rgba(180,160,240,0.45), font-weight 500, 10px
+Value text: white, bold, 22px
+
+### XP Progress Bar
+- Full width below stat cards
+- Height: 28px, border-radius: 14px
+- Label above: "EXPERIENCE" in rgba(180,160,240,0.4), font-weight 600, 10px
+- Background: rgba(8,2,25,0.85), border 1px rgba(120,60,220,0.15)
+- Fill: gradient #7c3aed → #8b5cf6 → #a855f7 → #7c3aed with glow (shadow 16px #7c3aed)
+- Text centered: white bold 12px "XP 85 / 150"
 
 ### Footer
-- "NEXAVERSE" text at bottom-right of card: rgba(160,100,255,0.2), font 500 11px
+- "NEXAVERSE" bottom-right: rgba(140,100,220,0.2), font-weight 500, 11px
 
-## FONT
-- Use Inter font or similar clean sans-serif
+## Placeholder Content
+- Username: "akhilthegrea.."
+- Role: "PRESIDENT"
+- Level: "2"
+- Rank: "Newcomer"
+- Credits: "110"
+- Reputation: "100/100"
+- Messages: "21"
+- Games: "0W"
+- XP: "85 / 150"
 
-## IMPORTANT
-- This is a STATIC background image that will have text overlaid dynamically
-- The placeholder text in the image should be: username "akhilthegrea..", role "PRESIDENT", level "2", rank "Newcomer", credits "110", reputation "100/100", messages "21", games "0W", XP "85 / 150"
-- The avatar should be a placeholder circle (dark purple #1a0040 with a white "?" or similar)
-- Output as PNG
-- Must look exactly like a premium glassmorphism card with purple neon accents
+## Output
+- Single PNG image, 900x560 pixels
+- Must render the placeholder content exactly as specified above
+- The image will be used as a Discord embed attachment
 
 ---
 
 ## After generating:
 1. Download the PNG from Lovable
-2. Upload it to the repo as `assets/profile-card-bg.png`
-3. I will modify the bot to overlay dynamic user data on top of this template
+2. Upload it to the repo at `assets/profile-card-bg.png`
+3. I'll modify the bot to overlay dynamic user data on top
