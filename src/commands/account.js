@@ -4,8 +4,7 @@ const { getXpInfo } = require('../systems/xp');
 const { getRepInfo } = require('../systems/reputation');
 const { getAchievements, getAllAchievements } = require('../systems/achievements');
 const { getRankForXp, formatCredits } = require('../utils/helpers');
-const { getMemberRoleName } = require('../utils/permissions');
-const { generateProfileCard } = require('../utils/images');
+const { getMemberRoleName, getStaffRole } = require('../utils/permissions');
 const config = require('../config');
 
 const PRESIDENT_GIFS = [
@@ -22,7 +21,6 @@ module.exports = {
     const { user, guild, member } = interaction;
     const guildId = guild.id;
 
-    // Loading screen
     await interaction.deferReply();
 
     try {
@@ -31,22 +29,33 @@ module.exports = {
       const rank = getRankForXp(userData.total_xp);
       const repInfo = getRepInfo(user.id, guildId);
       const roleName = getMemberRoleName(member);
+      const staffRole = getStaffRole(member);
 
-      // Generate profile card image
-      const attachment = await generateProfileCard(user, userData, xpInfo, rank, repInfo, roleName);
+      const divider = '\u2501'.repeat(32);
 
       const embed = new EmbedBuilder()
-        .setAuthor({ name: `${user.username} — Account Dashboard`, iconURL: user.displayAvatarURL({ dynamic: true }) })
+        .setAuthor({ name: `${user.username} \u2014 Account`, iconURL: user.displayAvatarURL({ dynamic: true }) })
         .setColor(config.colors.primary)
-        .setImage('attachment://profile.png')
+        .setDescription(
+          `${divider}\n` +
+          `**Level:** ${xpInfo.level} \u00b7 ${rank.name}\n` +
+          `**XP:** ${xpInfo.xp}/${xpInfo.xpNeeded}\n` +
+          `**Credits:** ${formatCredits(userData.credits)}\n` +
+          `**Reputation:** ${repInfo.score}/100 \u00b7 ${repInfo.level.label}\n` +
+          `**Role:** ${roleName}\n` +
+          `**Messages:** ${userData.messages}\n` +
+          `**Games:** ${userData.games_won}W / ${userData.games_played}P\n` +
+          `**Achievements:** ${getAchievements(user.id, guildId).length}/${getAllAchievements().length}\n` +
+          `${divider}`
+        )
         .setFooter({ text: 'Select an option below' })
         .setTimestamp();
 
       // GIF for President/Co-President
-      const { getStaffRole } = require('../utils/permissions');
-      const staffRole = getStaffRole(member);
       if (staffRole && (staffRole.name === 'PRESIDENT' || staffRole.name === 'CO_PRESIDENT')) {
-        embed.setThumbnail(PRESIDENT_GIFS[Math.floor(Math.random() * PRESIDENT_GIFS.length)]);
+        embed.setImage(PRESIDENT_GIFS[Math.floor(Math.random() * PRESIDENT_GIFS.length)]);
+      } else {
+        embed.setThumbnail(user.displayAvatarURL({ dynamic: true }));
       }
 
       const select = new ActionRowBuilder().addComponents(
@@ -54,6 +63,7 @@ module.exports = {
           .setCustomId('account_select')
           .setPlaceholder('Choose an option...')
           .addOptions([
+            { label: 'Profile', value: 'profile', description: 'View your profile card' },
             { label: 'Economy', value: 'economy', description: 'Daily, weekly, transfers' },
             { label: 'Activity', value: 'activity', description: 'Message stats and streaks' },
             { label: 'Reputation', value: 'reputation', description: 'Trust score and restrictions' },
@@ -63,7 +73,7 @@ module.exports = {
           ])
       );
 
-      await interaction.editReply({ embeds: [embed], files: [attachment], components: [select] });
+      await interaction.editReply({ embeds: [embed], components: [select] });
     } catch (error) {
       console.error('[ACCOUNT] Error:', error.message);
       await interaction.editReply({

@@ -20,6 +20,9 @@ async function handleAccountSelect(interaction) {
 
   try {
     switch (option) {
+      case 'profile':
+        await showProfilePanel(interaction);
+        break;
       case 'economy':
         await showEconomyPanel(interaction);
         break;
@@ -45,6 +48,35 @@ async function handleAccountSelect(interaction) {
     console.error('[ACCOUNT PANEL] Error:', error.message);
     await interaction.update({ embeds: [new EmbedBuilder().setTitle('Error').setDescription('Failed to load panel.').setColor(config.colors.error)], components: [] }).catch(() => {});
   }
+}
+
+async function showProfilePanel(interaction) {
+  const { getUser } = require('../systems/economy');
+  const { getXpInfo } = require('../systems/xp');
+  const { getRepInfo } = require('../systems/reputation');
+  const { getMemberRoleName } = require('../utils/permissions');
+  const { getRankForXp, formatCredits } = require('../utils/helpers');
+  const { generateProfileCard } = require('../utils/images');
+
+  const userData = getUser(interaction.user.id, interaction.guild.id);
+  const xpInfo = getXpInfo(interaction.user.id, interaction.guild.id);
+  const rank = getRankForXp(userData.total_xp);
+  const repInfo = getRepInfo(interaction.user.id, interaction.guild.id);
+  const roleName = getMemberRoleName(interaction.member);
+
+  const attachment = await generateProfileCard(interaction.user, userData, xpInfo, rank, repInfo, roleName);
+
+  const embed = new EmbedBuilder()
+    .setAuthor({ name: `${interaction.user.username} \u2014 Profile`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
+    .setColor(config.colors.primary)
+    .setImage('attachment://profile.png')
+    .setTimestamp();
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('nav_account_back').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({ embeds: [embed], files: [attachment], components: [backRow] });
 }
 
 async function showEconomyPanel(interaction) {
