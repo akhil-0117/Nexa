@@ -1,5 +1,5 @@
-const { Client, GatewayIntentBits, Collection, Partials, ActivityType } = require('discord.js');
-const { initDatabase } = require('./database/init');
+const { Client, GatewayIntentBits, Collection, Partials, ActivityType, EmbedBuilder } = require('discord.js');
+const { initDatabase, getDb } = require('./database/init');
 const config = require('./config');
 
 const client = new Client({
@@ -22,10 +22,54 @@ client.selectMenus = new Collection();
 client.modals = new Collection();
 client.cooldowns = new Collection();
 
-// Initialize database
+const START_TIME = Date.now();
+const processStartTime = process.hrtime.bigint();
+
+// ===== STATUS CHANNEL HELPERS =====
+
+async function postStatus(client, status, details = '') {
+  if (!config.statusChannelId) return;
+  try {
+    const channel = await client.channels.fetch(config.statusChannelId).catch(() => null);
+    if (!channel || !channel.isTextBased()) return;
+
+    const statusMeta = {
+      online: { title: 'NEXAVERSE Online', color: '#2ecc71', desc: 'Bot is running and connected.' },
+      offline: { title: 'NEXAVERSE Offline', color: '#e74c3c', desc: 'Bot is shutting down.' },
+      crash: { title: 'NEXAVERSE Crashed', color: '#e74c3c', desc: 'Bot encountered a fatal error and stopped.' },
+      restart: { title: 'NEXAVERSE Restarting', color: '#f39c12', desc: 'Bot is restarting.' },
+    };
+
+    const meta = statusMeta[status] || statusMeta.online;
+    const uptimeMs = Date.now() - START_TIME;
+    const hours = Math.floor(uptimeMs / 3600000);
+    const minutes = Math.floor((uptimeMs % 3600000) / 60000);
+    const uptimeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+    const embed = new EmbedBuilder()
+      .setTitle(meta.title)
+      .setColor(meta.color)
+      .setDescription(
+        `${'\u2501'.repeat(32)}\n` +
+        `${meta.desc}\n` +
+        (details ? `${details}\n` : '') +
+        (status === 'online' ? `**Uptime** Last session: ${uptimeStr}\n` : '') +
+        `**Time** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
+        `${'\u2501'.repeat(32)}`
+      )
+      .setFooter({ text: `NEXAVERSE \u00b7 ${status.toUpperCase()}` })
+      .setTimestamp();
+
+    await channel.send({ embeds: [embed] });
+  } catch (e) {
+    console.error('[STATUS] Failed to post status:', e.message);
+  }
+}
+
+// ===== DATABASE =====
 initDatabase();
 
-// Load commands
+// ===== COMMAND LOADING =====
 const fs = require('fs');
 const path = require('path');
 
@@ -41,7 +85,7 @@ if (fs.existsSync(commandsPath)) {
   }
 }
 
-// Load event handlers
+// ===== EVENT LOADING =====
 const eventsPath = path.join(__dirname, 'events');
 if (fs.existsSync(eventsPath)) {
   const eventFiles = fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'));
@@ -56,7 +100,7 @@ if (fs.existsSync(eventsPath)) {
   }
 }
 
-// Load components (buttons, selects, modals)
+// ===== COMPONENT LOADING =====
 const componentsPath = path.join(__dirname, 'components');
 if (fs.existsSync(componentsPath)) {
   const componentFiles = fs.readdirSync(componentsPath).filter(f => f.endsWith('.js'));
@@ -81,50 +125,39 @@ if (fs.existsSync(componentsPath)) {
   }
 }
 
-// Error handling
+// ===== ERROR HANDLING =====
+let crashReported = false;
+
 process.on('unhandledRejection', (error) => {
   console.error('[ERROR] Unhandled promise rejection:', error.message || error);
+  if (client.isReady() && !crashReported && error instanceof Error && error.message?.includes('FATAL')) {
+    crashReported = true;
+    postStatus(client, 'crash', `**Error** ${error.message}`.substring(0, 500));
+  }
 });
 
 process.on('uncaughtException', (error) => {
   console.error('[ERROR] Uncaught exception:', error.message || error);
+  if (client.isReady() && !crashReported) {
+    crashReported = true;
+    postStatus(client, 'crash', `**Error** ${(error.message || 'unknown').substring(0, 500)}`).finally(() => {
+      process.exit(1);
+    });
+  } else {
+    process.exit(1);
+  }
 });
 
-// Login
+// ===== LOGIN =====
 client.login(config.token).then(() => {
-  // Bot online status notification
-  if (config.statusChannelId) {
-    client.once('ready', async () => {
-      try {
-        const channel = await client.channels.fetch(config.statusChannelId).catch(() => null);
-        if (channel && channel.isTextBased()) {
-          const embed = new (require('discord.js').EmbedBuilder)()
-            .setTitle('NEXAVERSE Online')
-            .setDescription(`Bot is now online and ready.\nTime: <t:${Math.floor(Date.now()/1000)}:F>`)
-            .setColor('#2ecc71')
-            .setTimestamp();
-          await channel.send({ embeds: [embed] }).catch(() => {});
-        }
-      } catch (e) {}
-    });
-  }
-
-  // Graceful shutdown - post offline status
+  // Graceful shutdown
   const shutdown = async (signal) => {
-    console.log(`[SHUTDOWN] Received ${signal}, posting offline status...`);
-    if (config.statusChannelId && client.isReady()) {
-      try {
-        const channel = await client.channels.fetch(config.statusChannelId).catch(() => null);
-        if (channel && channel.isTextBased()) {
-          const embed = new (require('discord.js').EmbedBuilder)()
-            .setTitle('NEXAVERSE Offline')
-            .setDescription(`Bot has gone offline.\nTime: <t:${Math.floor(Date.now()/1000)}:F>`)
-            .setColor('#e74c3c')
-            .setTimestamp();
-          await channel.send({ embeds: [embed] }).catch(() => {});
-        }
-      } catch (e) {}
-    }
+    console.log(`[SHUTDOWN] Received ${signal}`);
+    try {
+      if (client.isReady()) {
+        await postStatus(client, 'offline', `**Reason** ${signal} received`);
+      }
+    } catch (e) {}
     client.destroy();
     process.exit(0);
   };
@@ -134,6 +167,32 @@ client.login(config.token).then(() => {
 }).catch(err => {
   console.error('[FATAL] Failed to login:', err.message);
   process.exit(1);
+});
+
+// ===== READY: post online status =====
+client.once('ready', async () => {
+  const guildCount = client.guilds.cache.size;
+  await postStatus(client, 'online', `**Servers** ${guildCount}  \u00b7  **Commands** ${client.commands.size}`);
+});
+
+// ===== READY: rotating presence =====
+const PRESENCES = [
+  { name: 'NEXAVERSE | /help', type: ActivityType.Watching },
+  { name: 'the arcade | /games', type: ActivityType.Playing },
+  { name: 'over the economy | /wallet', type: ActivityType.Watching },
+  { name: 'for new members | /verify', type: ActivityType.Listening },
+];
+
+client.once('ready', () => {
+  let idx = 0;
+  client.user.setPresence({
+    activities: [PRESENCES[0]],
+    status: 'online',
+  });
+  setInterval(() => {
+    idx = (idx + 1) % PRESENCES.length;
+    client.user.setPresence({ activities: [PRESENCES[idx]], status: 'online' });
+  }, 60 * 1000); // rotate every minute
 });
 
 module.exports = client;

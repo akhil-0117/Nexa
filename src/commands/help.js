@@ -9,7 +9,8 @@ const CATEGORIES = {
       '`/account` \u2014 Account dashboard and profile card\n' +
       '`/wallet` \u2014 Wallet, rewards and transfers\n' +
       '`/games` \u2014 Games arcade (7 games)\n' +
-      '`/stats` \u2014 Server statistics',
+      '`/stats` \u2014 Server statistics\n' +
+      '`/restore` \u2014 Owner only \u00b7 Re-invite members',
   },
   moderation: {
     title: 'Moderation',

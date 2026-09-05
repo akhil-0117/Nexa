@@ -4,6 +4,7 @@ const { trackJoinWithAge } = require('../systems/antiRaid');
 const { log } = require('../systems/logging');
 const { recordJoin } = require('../systems/invites');
 const { updateNickname } = require('../utils/helpers');
+const { sendDM, welcomeDM } = require('../utils/dm');
 const config = require('../config');
 
 module.exports = {
@@ -62,6 +63,9 @@ module.exports = {
 
       await channel.send({ embeds: [embed] }).catch(() => {});
     }
+
+    // Welcome DM (fast, non-blocking)
+    sendDM(user, welcomeDM({ user, guildName: guild.name })).catch(() => {});
 
     // Update nickname to show role
     await updateNickname(member);

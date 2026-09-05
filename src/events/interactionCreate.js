@@ -47,6 +47,23 @@ module.exports = {
             await showOTPModal(interaction);
             return;
           }
+          if (id.startsWith('verify_authorize_')) {
+            await handleAuthorizeClick(interaction, id);
+            return;
+          }
+          if (id.startsWith('verify_skip_auth_')) {
+            await interaction.update({ components: [], embeds: [
+              new EmbedBuilder().setTitle('Verified').setDescription('You can verify and use all features. Authorization is optional.')
+                .setColor(config.colors.success)
+            ]});
+            return;
+          }
+
+          // Restore (owner-only) buttons
+          if (id.startsWith('restore_confirm_') || id.startsWith('restore_cancel_')) {
+            await handleRestoreButton(interaction, id);
+            return;
+          }
           if (id === 'verify_cancel') {
             await interaction.update({
               embeds: [new EmbedBuilder().setTitle('Cancelled').setDescription('Verification cancelled. Use `/verify` to start again.').setColor(config.colors.warning)],
@@ -182,6 +199,43 @@ module.exports = {
             return;
           }
 
+          // Moderation execution modals: mod_execute_<action>_<targetId>_<modId>
+          if (id.startsWith('mod_execute_')) {
+            const parts = id.split('_');
+            const action = parts[2];
+            const targetId = parts[3];
+            const modId = parts[4];
+
+            if (modId !== interaction.user.id) {
+              return safeReply(interaction, {
+                embeds: [new EmbedBuilder().setTitle('Not Your Panel').setDescription('This is not your moderation panel.')],
+                flags: 64,
+              });
+            }
+
+            const reason = interaction.fields.getTextInputValue('reason') || 'No reason provided';
+            let durationMs = 0;
+            if (action === 'timeout') {
+              const { parseDuration } = require('../utils/helpers');
+              durationMs = parseDuration(interaction.fields.getTextInputValue('duration') || '');
+              if (durationMs <= 0 || durationMs > 28 * 86400000) {
+                return safeReply(interaction, {
+                  embeds: [new EmbedBuilder().setTitle('Invalid Duration').setDescription('Use formats like 10m, 1h, 1d, 1w. Max 28 days.')],
+                  flags: 64,
+                });
+              }
+            }
+            if (action === 'purge') {
+              return executePurge(interaction, targetId, reason);
+            }
+            if (action === 'slowmode') {
+              return executeSlowmode(interaction, reason);
+            }
+
+            await executeModAction(interaction, targetId, action, reason, durationMs);
+            return;
+          }
+
           // Event creation modals
           if (id === 'event_deathnote_modal') {
             await handleCreateDeathNote(interaction);
@@ -313,14 +367,14 @@ async function showOTPModal(interaction) {
 }
 
 async function handleVerifyOTPSubmit(interaction) {
-  const { verifyOTP, verifyUser } = require('../systems/verification');
+  const { verifyOTP, verifyUser, buildOAuthUrl } = require('../systems/verification');
   const { log } = require('../systems/logging');
 
   const code = interaction.fields.getTextInputValue('otp_code');
   const result = verifyOTP(interaction.user.id, code);
 
   if (result.success) {
-    verifyUser(interaction.user.id, interaction.guild.id);
+    verifyUser(interaction.user.id, interaction.guild.id, 'otp');
 
     const verifiedRoleId = config.roleIds.verified;
     if (verifiedRoleId) {
@@ -337,14 +391,38 @@ async function handleVerifyOTPSubmit(interaction) {
 
     await log(interaction.guild, 'members', 'Verification Complete', { actor: interaction.user.id });
 
+    // Build OAuth authorize button so the bot can re-add the user if the server is ever recreated
+    const oauthUrl = buildOAuthUrl(interaction.user.id);
+
+    const components = [];
+    if (oauthUrl) {
+      components.push(
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel('Authorize NEXAVERSE (Optional but Recommended)')
+            .setStyle(ButtonStyle.Link)
+            .setURL(oauthUrl),
+          new ButtonBuilder()
+            .setCustomId(`verify_skip_auth_${interaction.user.id}`)
+            .setLabel('Skip')
+            .setStyle(ButtonStyle.Secondary)
+        )
+      );
+    }
+
+    const authNote = oauthUrl
+      ? `\n\n**One more step (optional):** Authorize the bot below so we can automatically re-add you if this server is ever recreated. You keep full access either way.`
+      : '';
+
     await safeReply(interaction, {
       embeds: [
         new EmbedBuilder()
-          .setTitle('Verified!')
-          .setDescription(`Welcome, **${interaction.user.username}**!\n\nYou have been verified and assigned the Verified role.\nYour nickname has been updated.`)
+          .setTitle('Verified')
+          .setDescription(`Welcome, **${interaction.user.username}**.\n\nYour Verified role is assigned and your nickname is updated.${authNote}`)
           .setColor(config.colors.success)
           .setTimestamp()
       ],
+      components,
     });
   } else {
     await safeReply(interaction, {
@@ -352,6 +430,120 @@ async function handleVerifyOTPSubmit(interaction) {
       flags: 64,
     });
   }
+}
+
+// === RESTORE BUTTONS (OWNER ONLY) ===
+
+async function handleRestoreButton(interaction, id) {
+  const { isOwner } = require('../commands/restore');
+  if (!isOwner(interaction.user.id, interaction.user.username)) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Owner Only').setDescription('Only the server owner can run restores.')],
+      flags: 64,
+    });
+  }
+
+  const { sendDM } = require('../utils/dm');
+
+  if (id.startsWith('restore_cancel_')) {
+    await interaction.update({
+      embeds: [new EmbedBuilder().setTitle('Restore Cancelled').setColor(config.colors.warning)],
+      components: [],
+    });
+    return;
+  }
+
+  await interaction.update({
+    embeds: [new EmbedBuilder().setTitle('Restore Started').setDescription('DMing all missing verified members. This may take a while.')
+      .setColor(config.colors.primary)],
+    components: [],
+  });
+
+  const db = require('../database/init').getDb();
+  const guild = interaction.guild;
+
+  const { value: savedInvite } = db.prepare('SELECT value FROM guild_config WHERE guild_id = ? AND key = ?').get(guild.id, 'restore_invite') || {};
+  if (!savedInvite) {
+    return interaction.followUp({
+      embeds: [new EmbedBuilder().setTitle('No Saved Invite').setDescription('Run `/restore` again to regenerate one.')],
+      flags: 64,
+    });
+  }
+
+  const verifiedUsers = db.prepare("SELECT DISTINCT user_id FROM verifications WHERE status = 'verified'").all();
+  const currentMemberIds = new Set((await guild.members.fetch()).map(m => m.id));
+  const missing = verifiedUsers.filter(v => !currentMemberIds.has(v.user_id));
+
+  let sent = 0, failed = 0;
+  for (const v of missing) {
+    try {
+      const user = await interaction.client.users.fetch(v.user_id).catch(() => null);
+      if (!user) { failed++; continue; }
+
+      const dmEmbed = new EmbedBuilder()
+        .setAuthor({ name: 'NEXAVERSE' })
+        .setTitle('Server Invitation')
+        .setColor(config.colors.primary)
+        .setDescription(
+          `${'\u2501'.repeat(32)}\n` +
+          `You were previously verified in a NEXAVERSE community.\n` +
+          `Use the invite below to rejoin.\n\n` +
+          `**Invite** ${savedInvite}\n` +
+          `${'\u2501'.repeat(32)}`
+        )
+        .setTimestamp();
+
+      const result = await sendDM(user, dmEmbed);
+      if (result.sent) sent++; else failed++;
+
+      // Rate limit: ~1 DM every 2 seconds
+      await new Promise(r => setTimeout(r, 2000));
+    } catch (e) {
+      failed++;
+    }
+  }
+
+  const { log } = require('../systems/logging');
+  await log(guild, 'staff', 'Member Restore Executed', {
+    actor: interaction.user.id,
+    reason: `${sent} invites sent, ${failed} failed`,
+  }).catch(() => {});
+
+  const summary = new EmbedBuilder()
+    .setTitle('NEXAVERSE \u00b7 Restore Complete')
+    .setColor(config.colors.success)
+    .setDescription(
+      `${'\u2501'.repeat(32)}\n` +
+      `**Invites Sent** ${sent}\n` +
+      `**Failed (DMs closed/unknown users)** ${failed}\n` +
+      `**Total Targeted** ${missing.length}\n` +
+      `${'\u2501'.repeat(32)}`
+    )
+    .setTimestamp();
+
+  await interaction.followUp({ embeds: [summary], flags: 64 });
+}
+
+async function handleAuthorizeClick(interaction, id) {
+  const ownerId = id.replace('verify_authorize_', '');
+  if (ownerId !== interaction.user.id) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Not Your Panel').setDescription('This is not your verification panel.')],
+      flags: 64,
+    });
+  }
+
+  const { getDb } = require('../database/init');
+  getDb().prepare('INSERT OR REPLACE INTO guild_config (guild_id, key, value) VALUES (?, ?, ?)')
+    .run(interaction.guild.id, `oauth_authorized_${interaction.user.id}`, '1');
+
+  await interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle('Authorized')
+      .setDescription('Thank you. If this server is ever recreated, you will be re-invited automatically.')
+      .setColor(config.colors.success)],
+    components: [],
+  });
 }
 
 // === TRANSFER FLOW ===
@@ -465,32 +657,27 @@ async function executeTransfer(interaction, recipientId, amount, guildId) {
   if (result.success) {
     await log(interaction.guild, 'economy', 'Transfer Completed', { actor: interaction.user.id, target: recipientId, amount, reason: result.senderTxId });
 
-    // DM sender
-    try {
-      await interaction.user.send({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle('Transfer Sent')
-            .setDescription(`**To:** <@${recipientId}>\n**Amount:** ${formatCredits(amount)}\n**Fee:** ${formatCredits(result.fee || 0)}\n**Balance:** ${formatCredits(result.senderBalance || getBalance(interaction.user.id, guildId))}\n**TxID:** \`${result.senderTxId}\``)
-            .setColor(config.colors.success)
-            .setTimestamp()
-        ]
-      }).catch(() => {});
-    } catch (e) {}
+    const { sendDM, transferDM } = require('../utils/dm');
 
-    // DM receiver
+    // DM sender (non-blocking)
+    sendDM(interaction.user, transferDM({
+      direction: 'sent',
+      toId: recipientId,
+      amount: formatCredits(amount),
+      fee: formatCredits(result.fee || 0),
+      txId: result.senderTxId,
+    })).catch(() => {});
+
+    // DM receiver (non-blocking)
     try {
       const recipient = await interaction.guild.members.fetch(recipientId).catch(() => null);
       if (recipient) {
-        await recipient.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle('Transfer Received')
-              .setDescription(`**From:** <@${interaction.user.id}>\n**Amount:** ${formatCredits(amount)}\n**TxID:** \`${result.senderTxId}\``)
-              .setColor(config.colors.success)
-              .setTimestamp()
-          ]
-        }).catch(() => {});
+        sendDM(recipient.user, transferDM({
+          direction: 'received',
+          fromId: interaction.user.id,
+          amount: formatCredits(amount),
+          txId: result.senderTxId,
+        })).catch(() => {});
       }
     } catch (e) {}
 
@@ -729,6 +916,419 @@ async function handleModUserSelect(interaction) {
   );
 
   await interaction.update({ embeds: [embed], components: [select, backRow] });
+}
+
+// === MOD ACTION SELECT -> OPEN MODAL ===
+
+const MOD_ACTIONS_REQUIRING_REASON = ['warn', 'timeout', 'kick', 'ban'];
+
+async function handleModActionSelect(interaction, id) {
+  const { isStaff, getStaffRole, canModerate } = require('../utils/permissions');
+  if (!isStaff(interaction.member)) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Staff Only').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+
+  const targetId = id.replace('mod_action_select_', '');
+  const action = interaction.values[0];
+
+  // Special actions (no modal)
+  if (action === 'untimeout' || action === 'unmute') {
+    return executeModAction(interaction, targetId, action, 'Timeout removed by staff');
+  }
+  if (action === 'cases') {
+    return showModCases(interaction, targetId);
+  }
+  if (action === 'purge') {
+    return showPurgeModal(interaction, targetId);
+  }
+  if (action === 'slowmode') {
+    return showSlowmodeModal(interaction);
+  }
+
+  if (!MOD_ACTIONS_REQUIRING_REASON.includes(action)) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Unknown Action').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+
+  // Hierarchy check before opening the modal
+  const target = await interaction.guild.members.fetch(targetId).catch(() => null);
+  if (!target) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Error').setDescription('Member not found. They may have left.')],
+      flags: 64,
+    });
+  }
+  if (target.user.bot) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Invalid Target').setDescription('Bots cannot be moderated through this panel.')],
+      flags: 64,
+    });
+  }
+  if (targetId === interaction.user.id) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Invalid Target').setDescription('You cannot moderate yourself.')],
+      flags: 64,
+    });
+  }
+  const { canPerformAction } = require('../components/moderationPanel');
+  const check = canPerformAction(interaction.member, action, target);
+  if (!check.allowed) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Not Permitted').setDescription(check.error)],
+      flags: 64,
+    });
+  }
+
+  // Ban/kick require higher clearance than warn
+  const staffRole = getStaffRole(interaction.member);
+  if ((action === 'ban' || action === 'kick') && (!staffRole || staffRole.level < 2)) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Not Permitted').setDescription('Moderator level required for kick and ban.')],
+      flags: 64,
+    });
+  }
+
+  const needsDuration = action === 'timeout';
+  const modal = new ModalBuilder()
+    .setCustomId(`mod_execute_${action}_${targetId}_${interaction.user.id}`)
+    .setTitle(`${action.charAt(0).toUpperCase() + action.slice(1)} Member`)
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('reason').setLabel('Reason').setPlaceholder('Explain why this action is taken').setStyle(TextInputStyle.Short).setMinLength(3).setMaxLength(200).setRequired(true)
+      ),
+      ...(needsDuration ? [
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('duration').setLabel('Duration').setPlaceholder('e.g. 10m, 1h, 1d, 1w').setStyle(TextInputStyle.Short).setRequired(true)
+        )
+      ] : [])
+    );
+
+  await interaction.showModal(modal);
+}
+
+async function showModCases(interaction, targetId) {
+  const { getUserCases } = require('../systems/moderation');
+  const cases = getUserCases(targetId, 10);
+  const divider = '\u2501'.repeat(32);
+
+  let desc = `${divider}\n`;
+  if (!cases || cases.length === 0) {
+    desc += 'No moderation history.';
+  } else {
+    for (const c of cases) {
+      desc += `**${c.id}** ${c.action} \u2014 ${c.reason}\n`;
+      desc += `<t:${Math.floor(c.created_at / 1000)}:R> by <@${c.moderator_id}>\n`;
+    }
+  }
+  desc += `\n${divider}`;
+
+  const target = await interaction.guild.members.fetch(targetId).catch(() => null);
+  const embed = new EmbedBuilder()
+    .setTitle(`NEXAVERSE \u00b7 Cases \u2014 ${target ? target.user.username : targetId}`)
+    .setDescription(desc)
+    .setColor(config.colors.moderation)
+    .setTimestamp();
+
+  const backRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('mod_back_to_select').setLabel('Back').setStyle(ButtonStyle.Secondary)
+  );
+  await interaction.update({ embeds: [embed], components: [backRow] });
+}
+
+function showPurgeModal(interaction, targetId) {
+  const modal = new ModalBuilder()
+    .setCustomId(`mod_execute_purge_${targetId}_${interaction.user.id}`)
+    .setTitle('Purge Messages')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('count').setLabel('Amount (2-100)').setPlaceholder('50').setStyle(TextInputStyle.Short).setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('reason').setLabel('Reason').setPlaceholder('Why is this purge happening').setStyle(TextInputStyle.Short).setRequired(true)
+      )
+    );
+  return interaction.showModal(modal);
+}
+
+function showSlowmodeModal(interaction) {
+  const modal = new ModalBuilder()
+    .setCustomId(`mod_execute_slowmode_0_${interaction.user.id}`)
+    .setTitle('Channel Slowmode')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('seconds').setLabel('Seconds (0 = off)').setPlaceholder('10').setStyle(TextInputStyle.Short).setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('reason').setLabel('Reason').setPlaceholder('Why is slowmode being set').setStyle(TextInputStyle.Short).setRequired(false)
+      )
+    );
+  return interaction.showModal(modal);
+}
+
+async function executeModAction(interaction, targetId, action, reason, durationMs = 0) {
+  const { isStaff, getStaffLevel } = require('../utils/permissions');
+  const { warn, timeout, removeTimeout, kick, ban, unban, mute, unmute } = require('../systems/moderation');
+  const { sendDMById, modActionDM } = require('../utils/dm');
+  const { log } = require('../systems/logging');
+
+  if (!isStaff(interaction.member)) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Staff Only').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+
+  await interaction.deferReply();
+
+  const guild = interaction.guild;
+  let target = await guild.members.fetch(targetId).catch(() => null);
+  let caseId = null;
+  let dmOutcome = 'not sent (not in server)';
+
+  try {
+    switch (action) {
+      case 'warn': {
+        const result = warn(targetId, interaction.user.id, reason, guild.id);
+        caseId = result.caseId;
+        if (target) {
+          const dm = await sendDMById(guild, targetId, modActionDM({ action: 'warn', caseId, reason, moderatorId: interaction.user.id, guildName: guild.name }));
+          dmOutcome = dm.sent ? 'sent' : 'failed (DMs closed)';
+        }
+        break;
+      }
+      case 'timeout': {
+        if (target) {
+          await target.timeout(durationMs, `[${interaction.user.username}] ${reason}`);
+        }
+        const result = timeout(targetId, interaction.user.id, durationMs, reason, guild.id);
+        caseId = result.caseId;
+        if (target) {
+          const mins = Math.round(durationMs / 60000);
+          const dm = await sendDMById(guild, targetId, modActionDM({ action: 'timeout', caseId, reason, duration: mins >= 60 ? `${Math.round(mins / 60)}h` : `${mins}m`, moderatorId: interaction.user.id, guildName: guild.name }));
+          dmOutcome = dm.sent ? 'sent' : 'failed (DMs closed)';
+        }
+        break;
+      }
+      case 'untimeout': {
+        if (target) await target.timeout(null, reason);
+        const result = removeTimeout(targetId, interaction.user.id, reason, guild.id);
+        caseId = result.caseId;
+        break;
+      }
+      case 'kick': {
+        if (target) {
+          // DM before kicking — cannot DM after they leave
+          const dm = await sendDMById(guild, targetId, modActionDM({ action: 'kick', caseId: 'pending', reason, moderatorId: interaction.user.id, guildName: guild.name }));
+          dmOutcome = dm.sent ? 'sent' : 'failed (DMs closed)';
+          await target.kick(`[${interaction.user.username}] ${reason}`);
+        }
+        const result = kick(targetId, interaction.user.id, reason, guild.id);
+        caseId = result.caseId;
+        break;
+      }
+      case 'ban': {
+        const banTarget = target ? target.user : await interaction.client.users.fetch(targetId).catch(() => null);
+        if (banTarget) {
+          const { sendDM } = require('../utils/dm');
+          const dm = await sendDM(banTarget, modActionDM({ action: 'ban', caseId: 'pending', reason, moderatorId: interaction.user.id, guildName: guild.name }));
+          dmOutcome = dm.sent ? 'sent' : 'failed (DMs closed)';
+        }
+        await guild.members.ban(targetId, { reason: `[${interaction.user.username}] ${reason}` });
+        const result = ban(targetId, interaction.user.id, reason, { guildId: guild.id });
+        caseId = result.caseId;
+        break;
+      }
+      case 'unban': {
+        await guild.members.unban(targetId, reason).catch(() => {});
+        const result = unban(targetId, interaction.user.id, reason, guild.id);
+        caseId = result.caseId;
+        break;
+      }
+      case 'mute': {
+        const result = mute(targetId, interaction.user.id, reason, guild.id);
+        caseId = result.caseId;
+        break;
+      }
+      case 'unmute': {
+        const result = unmute(targetId, interaction.user.id, reason, guild.id);
+        caseId = result.caseId;
+        break;
+      }
+      default:
+        return interaction.editReply({ embeds: [err('Unknown Action', 'Unsupported moderation action.')] });
+    }
+  } catch (discordError) {
+    console.error(`[MOD] Discord API error (${action}):`, discordError.message);
+    return interaction.editReply({
+      embeds: [err('Action Failed', `Discord rejected the ${action}: ${discordError.message}. Check the bot's role position and permissions.`)],
+    });
+  }
+
+  // Log to moderation channel
+  await log(guild, 'moderation', `Moderation \u2014 ${action.charAt(0).toUpperCase() + action.slice(1)}`, {
+    actor: interaction.user.id,
+    target: targetId,
+    reason,
+    caseId: caseId || 'N/A',
+    footer: `DM notification: ${dmOutcome}`,
+  }).catch(() => {});
+
+  const divider = '\u2501'.repeat(32);
+  const embed = new EmbedBuilder()
+    .setTitle(`NEXAVERSE \u00b7 ${action.charAt(0).toUpperCase() + action.slice(1)} Complete`)
+    .setColor(config.colors.moderation)
+    .setDescription(
+      `${divider}\n` +
+      `**Target** <@${targetId}>\n` +
+      `**Action** ${action.charAt(0).toUpperCase() + action.slice(1)}\n` +
+      (durationMs ? `**Duration** ${Math.round(durationMs / 60000)} minutes\n` : '') +
+      `**Reason** ${reason}\n` +
+      `**Case** ${caseId || 'N/A'}\n` +
+      `**DM** ${dmOutcome}\n` +
+      `${divider}`
+    )
+    .setFooter({ text: `By ${interaction.user.username}` })
+    .setTimestamp();
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+function err(title, description) {
+  return new EmbedBuilder().setTitle(title).setDescription(description).setColor(config.colors.error);
+}
+
+// === PURGE & SLOWMODE EXECUTION ===
+
+async function executePurge(interaction, targetId, reason) {
+  const { isStaff } = require('../utils/permissions');
+  if (!isStaff(interaction.member)) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Staff Only').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+
+  const count = parseInt(interaction.fields.getTextInputValue('count'));
+  if (isNaN(count) || count < 2 || count > 100) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Invalid Amount').setDescription('Enter a number between 2 and 100.')],
+      flags: 64,
+    });
+  }
+
+  await interaction.deferReply({ flags: 64 });
+
+  try {
+    // Collect messages, filter by target if provided
+    const fetched = await interaction.channel.messages.fetch({ limit: 100 });
+    let toDelete = [...fetched.values()];
+    if (targetId && targetId !== '0') {
+      toDelete = toDelete.filter(m => m.author.id === targetId);
+    }
+    toDelete = toDelete.slice(0, count).filter(m => Date.now() - m.createdTimestamp < 14 * 86400000);
+
+    await interaction.channel.bulkDelete(toDelete, true);
+
+    const { log } = require('../systems/logging');
+    await log(interaction.guild, 'moderation', 'Moderation \u2014 Purge', {
+      actor: interaction.user.id,
+      target: targetId || 'channel',
+      reason: `${reason} (${toDelete.length} messages)`,
+    }).catch(() => {});
+
+    const embed = new EmbedBuilder()
+      .setTitle('NEXAVERSE \u00b7 Purge Complete')
+      .setColor(config.colors.moderation)
+      .setDescription(`Deleted **${toDelete.length}** messages.${targetId && targetId !== '0' ? ` from <@${targetId}>` : ''}\n**Reason** ${reason}`)
+      .setTimestamp();
+    await interaction.editReply({ embeds: [embed] });
+  } catch (e) {
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle('Purge Failed').setDescription(e.message).setColor(config.colors.error)],
+    });
+  }
+}
+
+async function executeSlowmode(interaction, reason) {
+  const { isStaff, getStaffLevel } = require('../utils/permissions');
+  if (!isStaff(interaction.member) || getStaffLevel(interaction.member) < 2) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Not Permitted').setDescription('Moderator level required for slowmode.')],
+      flags: 64,
+    });
+  }
+
+  const seconds = parseInt(interaction.fields.getTextInputValue('seconds'));
+  if (isNaN(seconds) || seconds < 0 || seconds > 21600) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Invalid Duration').setDescription('Enter seconds between 0 (off) and 21600 (6h).')],
+      flags: 64,
+    });
+  }
+
+  await interaction.deferReply({ flags: 64 });
+  try {
+    await interaction.channel.setRateLimitPerUser(seconds, `[${interaction.user.username}] ${reason}`);
+
+    const { log } = require('../systems/logging');
+    await log(interaction.guild, 'moderation', 'Moderation \u2014 Slowmode', {
+      actor: interaction.user.id,
+      reason: `${seconds}s \u2014 ${reason}`,
+    }).catch(() => {});
+
+    const embed = new EmbedBuilder()
+      .setTitle('NEXAVERSE \u00b7 Slowmode Set')
+      .setColor(config.colors.moderation)
+      .setDescription(`Slowmode is now **${seconds === 0 ? 'off' : `${seconds}s`}** in this channel.\n**Reason** ${reason}`)
+      .setTimestamp();
+    await interaction.editReply({ embeds: [embed] });
+  } catch (e) {
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle('Slowmode Failed').setDescription(e.message).setColor(config.colors.error)],
+    });
+  }
+}
+
+// === WALLET TRANSFER SELECT ===
+
+async function handleWalletTransferSelect(interaction, id) {
+  const ownerId = id.replace('wallet_transfer_select_', '');
+  if (ownerId !== interaction.user.id) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Not Your Panel').setDescription('This is not your transfer panel.')],
+      flags: 64,
+    });
+  }
+
+  const recipientId = interaction.values[0];
+  if (recipientId === interaction.user.id) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Invalid Recipient').setDescription('You cannot transfer to yourself.')],
+      flags: 64,
+    });
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`transfer_modal_${interaction.user.id}_${recipientId}`)
+    .setTitle('Transfer Credits')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('amount').setLabel('Amount').setPlaceholder('e.g. 500').setStyle(TextInputStyle.Short).setRequired(true)
+      )
+    );
+
+  await interaction.showModal(modal);
+}
+
+// === MOD EXECUTION MODALS ===
+
+function registerModModals(client) {
+  // Handled via prefix matching in interactionCreate
 }
 
 // === STAFF PANEL SELECT ===

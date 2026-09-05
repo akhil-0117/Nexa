@@ -79,13 +79,14 @@ module.exports = {
         reason: `Word/pattern detected: ${badWord.word || badWord.type}`,
         caseId: result.caseId,
       });
-      try {
-        await author.send({ embeds: [
-          new EmbedBuilder().setTitle('⚠️ Warning').setDescription(`Your message was deleted and you have been auto-warned for using inappropriate language.
-Case: ${result.caseId}
-Reputation: -${result.reputationDecrease}`).setColor(config.colors.warning)
-        ] }).catch(() => {});
-      } catch (e) {}
+      const { sendDM, modActionDM } = require('../utils/dm');
+      sendDM(author, modActionDM({
+        action: 'warn',
+        caseId: result.caseId,
+        reason: `Automatic filter: inappropriate language detected. Your message was removed.`,
+        moderatorId: client.user.id,
+        guildName: guild.name,
+      })).catch(() => {});
       return;
     }
 

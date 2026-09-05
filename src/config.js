@@ -13,6 +13,13 @@ const config = {
   verificationChannelId: process.env.VERIFICATION_CHANNEL_ID || null,
   statusChannelId: process.env.STATUS_CHANNEL_ID || null,
 
+  // Owner: allowed by Discord user ID (recommended) or exact username
+  ownerUserId: process.env.OWNER_USER_ID || '',
+  ownerUsername: process.env.OWNER_USERNAME || 'akhilthegreat_7',
+
+  // OAuth: set OAUTH_REDIRECT_URI in the Developer Portal + here to enable guilds.join authorization
+  oauthRedirectUri: process.env.OAUTH_REDIRECT_URI || '',
+
   logChannels: {
     moderation: process.env.LOG_CHANNEL_MODERATION || null,
     members: process.env.LOG_CHANNEL_MEMBERS || null,
