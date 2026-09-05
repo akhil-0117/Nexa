@@ -2,9 +2,9 @@ const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBui
 const { getUser } = require('../systems/economy');
 const { getXpInfo } = require('../systems/xp');
 const { getRepInfo } = require('../systems/reputation');
-const { getAchievements, getAllAchievements } = require('../systems/achievements');
 const { getRankForXp, formatCredits } = require('../utils/helpers');
 const { getMemberRoleName, getStaffRole } = require('../utils/permissions');
+const { generateBrandBanner } = require('../utils/images');
 const config = require('../config');
 
 const PRESIDENT_GIFS = [
@@ -37,43 +37,54 @@ module.exports = {
         .setAuthor({ name: `${user.username} \u2014 Account`, iconURL: user.displayAvatarURL({ dynamic: true }) })
         .setColor(config.colors.primary)
         .setDescription(
+          `Select a section from the dropdown below to explore your account.\n\n` +
+          `**Sections**\n` +
+          `Profile \u2014 Visual profile card\n` +
+          `Activity \u2014 Messages and XP\n` +
+          `Reputation \u2014 Trust score\n` +
+          `Achievements \u2014 Unlocked badges\n` +
+          `Transactions \u2014 Recent credits history\n` +
+          `Invites \u2014 Invite statistics\n\n` +
           `${divider}\n` +
-          `**Level:** ${xpInfo.level} \u00b7 ${rank.name}\n` +
-          `**XP:** ${xpInfo.xp}/${xpInfo.xpNeeded}\n` +
-          `**Credits:** ${formatCredits(userData.credits)}\n` +
-          `**Reputation:** ${repInfo.score}/100 \u00b7 ${repInfo.level.label}\n` +
-          `**Role:** ${roleName}\n` +
-          `**Messages:** ${userData.messages}\n` +
-          `**Games:** ${userData.games_won}W / ${userData.games_played}P\n` +
-          `**Achievements:** ${getAchievements(user.id, guildId).length}/${getAllAchievements().length}\n` +
+          `**Level** ${xpInfo.level} \u00b7 ${rank.name}  \u00b7  **XP** ${xpInfo.xp}/${xpInfo.xpNeeded}\n` +
+          `**Credits** ${formatCredits(userData.credits)}  \u00b7  **Reputation** ${repInfo.score}/100\n` +
+          `**Role** ${roleName}\n` +
           `${divider}`
         )
-        .setFooter({ text: 'Select an option below' })
+        .setFooter({ text: 'NEXAVERSE Account System' })
         .setTimestamp();
 
-      // GIF for President/Co-President
-      if (staffRole && (staffRole.name === 'PRESIDENT' || staffRole.name === 'CO_PRESIDENT')) {
+      const files = [];
+      const isExecutive = staffRole && (staffRole.name === 'PRESIDENT' || staffRole.name === 'CO_PRESIDENT');
+      if (isExecutive) {
+        // President/Co-President get a random GIF as the panel image
         embed.setImage(PRESIDENT_GIFS[Math.floor(Math.random() * PRESIDENT_GIFS.length)]);
       } else {
-        embed.setThumbnail(user.displayAvatarURL({ dynamic: true }));
+        // Everyone else gets the NEXAVERSE brand banner
+        try {
+          const banner = await generateBrandBanner('NEXAVERSE', 'ACCOUNT SYSTEM');
+          files.push(banner);
+          embed.setImage('attachment://banner.png');
+        } catch (e) {
+          embed.setThumbnail(user.displayAvatarURL({ dynamic: true }));
+        }
       }
 
       const select = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId('account_select')
-          .setPlaceholder('Choose an option...')
+          .setPlaceholder('Browse your account...')
           .addOptions([
-            { label: 'Profile', value: 'profile', description: 'View your profile card' },
-            { label: 'Economy', value: 'economy', description: 'Daily, weekly, transfers' },
-            { label: 'Activity', value: 'activity', description: 'Message stats and streaks' },
+            { label: 'Profile', value: 'profile', description: 'View your visual profile card' },
+            { label: 'Activity', value: 'activity', description: 'Messages, XP and level' },
             { label: 'Reputation', value: 'reputation', description: 'Trust score and restrictions' },
             { label: 'Achievements', value: 'achievements', description: 'Unlocked achievements' },
-            { label: 'Transactions', value: 'transactions', description: 'Recent transactions' },
+            { label: 'Transactions', value: 'transactions', description: 'Recent credit history' },
             { label: 'Invites', value: 'invites', description: 'Invite statistics' },
           ])
       );
 
-      await interaction.editReply({ embeds: [embed], components: [select] });
+      await interaction.editReply({ embeds: [embed], files, components: [select] });
     } catch (error) {
       console.error('[ACCOUNT] Error:', error.message);
       await interaction.editReply({

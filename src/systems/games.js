@@ -6,6 +6,7 @@ const { getReputationLevel } = require('../utils/helpers');
 const { addXp } = require('./xp');
 
 const activeGames = new Map();
+const lastGameTimes = new Map(); // per-user cooldown tracking
 
 function canPlay(userId, guildId) {
   const user = getUser(userId, guildId);
@@ -13,6 +14,12 @@ function canPlay(userId, guildId) {
   const repLevel = getReputationLevel(user.reputation);
   if (repLevel.key === 'veryLow') return { allowed: false, reason: 'Reputation too low for games' };
   if (activeGames.has(`${userId}_${guildId}`)) return { allowed: false, reason: 'You already have an active game' };
+  // Per-game cooldown (5s)
+  const last = lastGameTimes.get(`${userId}_${guildId}`) || 0;
+  if (Date.now() - last < config.games.cooldownMs) {
+    const remaining = Math.ceil((config.games.cooldownMs - (Date.now() - last)) / 1000);
+    return { allowed: false, reason: `Cooldown active \u2014 wait ${remaining}s` };
+  }
   return { allowed: true };
 }
 
@@ -55,6 +62,7 @@ function finishGame(gameId, userId, guildId, result, winner, payout) {
   }
 
   activeGames.delete(`${userId}_${guildId}`);
+  lastGameTimes.set(`${userId}_${guildId}`, Date.now());
   return { gameId, txId, payout };
 }
 
@@ -153,7 +161,7 @@ function playDice(userId, guildId, channelId, prediction, amount) {
   const payout = won ? amount * 5 : 0;
   const finish = finishGame(gameId, userId, guildId, roll.toString(), won ? userId : '', payout);
 
-  return { success: true, gameId, roll, won, payout, balance: getBalance(userId, guildId), transactionId: finish?.txId };
+  return { success: true, gameId, prediction, roll, won, payout, balance: getBalance(userId, guildId), transactionId: finish?.txId };
 }
 
 function playHigherLower(userId, guildId, channelId, choice, amount) {
@@ -175,7 +183,7 @@ function playHigherLower(userId, guildId, channelId, choice, amount) {
   const payout = won ? amount * 3 : 0;
   const finish = finishGame(gameId, userId, guildId, `${first} → ${second}`, won ? userId : '', payout);
 
-  return { success: true, gameId, first, second, won, payout, balance: getBalance(userId, guildId), transactionId: finish?.txId };
+  return { success: true, gameId, first, second, choice, won, payout, balance: getBalance(userId, guildId), transactionId: finish?.txId };
 }
 
 function playRps(userId, guildId, channelId, choice, amount) {

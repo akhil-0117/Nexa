@@ -79,7 +79,7 @@ function claimDaily(userId, guildId = '0') {
 
   if (user.last_daily_time && (now - user.last_daily_time) < cooldown) {
     const remaining = cooldown - (now - user.last_daily_time);
-    return { success: false, error: `Daily already claimed. Try again in ${Math.ceil(remaining / 3600000)}h` };
+    return { success: false, error: `Daily already claimed. Try again in ${Math.ceil(remaining / 3600000)}h`, reason: `Daily already claimed. Try again <t:${Math.floor((now + remaining) / 1000)}:R>.` };
   }
 
   const repLevel = getReputationLevel(user.reputation);
@@ -103,7 +103,7 @@ function claimWeekly(userId, guildId = '0') {
 
   if (user.last_weekly_time && (now - user.last_weekly_time) < cooldown) {
     const remaining = cooldown - (now - user.last_weekly_time);
-    return { success: false, error: `Weekly already claimed. Try again in ${Math.ceil(remaining / 86400000)}d` };
+    return { success: false, error: `Weekly already claimed. Try again in ${Math.ceil(remaining / 86400000)}d`, reason: `Weekly already claimed. Try again <t:${Math.floor((now + remaining) / 1000)}:R>.` };
   }
 
   const repLevel = getReputationLevel(user.reputation);
@@ -119,9 +119,23 @@ function claimWeekly(userId, guildId = '0') {
   return { success: true, reward, txId, balance: getBalance(userId, guildId) };
 }
 
-function getTransactions(userId, limit = 20, offset = 0) {
+function getTransactions(userId, guildId = null, limit = 20, offset = 0) {
   const db = getDb();
+  // Support both (userId, limit) and (userId, guildId, limit) signatures
+  if (typeof guildId === 'number' && guildId <= 100) {
+    offset = limit || 0;
+    limit = guildId;
+    guildId = null;
+  }
+  if (guildId) {
+    return db.prepare('SELECT * FROM transactions WHERE user_id = ? AND guild_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(userId, guildId, limit, offset);
+  }
   return db.prepare('SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(userId, limit, offset);
+}
+
+function getLeaderboard(guildId, limit = 10) {
+  const db = getDb();
+  return db.prepare('SELECT user_id, username, credits FROM users WHERE guild_id = ? ORDER BY credits DESC LIMIT ?').all(guildId, limit);
 }
 
 function adjustBalance(userId, amount, moderatorId, reason, guildId = '0') {
@@ -137,5 +151,5 @@ function adjustBalance(userId, amount, moderatorId, reason, guildId = '0') {
 
 module.exports = {
   getUser, updateBalance, getBalance, createTransaction, transfer,
-  claimDaily, claimWeekly, getTransactions, adjustBalance,
+  claimDaily, claimWeekly, getTransactions, adjustBalance, getLeaderboard,
 };

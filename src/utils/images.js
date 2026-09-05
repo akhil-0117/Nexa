@@ -562,10 +562,72 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   return new AttachmentBuilder(canvas.toBuffer('image/png'), { name: 'profile.png' });
 }
 
+// ===== BRAND BANNER (Aether-style) =====
+async function generateBrandBanner(text = 'NEXAVERSE', subtitle = 'COMPLETE DISCORD ECOSYSTEM') {
+  const W = 1600;
+  const H = 500;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+
+  // Deep dark background with subtle purple tint at edges
+  const bg = ctx.createRadialGradient(W / 2, H / 2, 50, W / 2, H / 2, W * 0.7);
+  bg.addColorStop(0, '#100a20');
+  bg.addColorStop(0.6, '#0a0616');
+  bg.addColorStop(1, '#050308');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle corner glow bottom-right
+  const corner = ctx.createRadialGradient(W * 0.92, H * 0.95, 0, W * 0.92, H * 0.95, H * 0.9);
+  corner.addColorStop(0, 'rgba(124, 77, 255, 0.22)');
+  corner.addColorStop(1, 'rgba(124, 77, 255, 0)');
+  ctx.fillStyle = corner;
+  ctx.fillRect(0, 0, W, H);
+
+  // Fine grain texture
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = 'rgba(255,255,255,0.04)';
+  for (let y = 0; y < H; y += 4) {
+    for (let x = 0; x < W; x += 4) {
+      if ((x + y) % 8 === 0) ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // Title text — large, wide-tracked, white with slight glow
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.save();
+  ctx.shadowColor = 'rgba(160, 120, 255, 0.35)';
+  ctx.shadowBlur = 40;
+  ctx.fillStyle = '#f2f0f7';
+  ctx.font = `800 ${Math.floor(H * 0.34)}px Sora`;
+  ctx.fillText(text, W / 2, H / 2 - (subtitle ? 18 : 0));
+  ctx.restore();
+
+  // Letter-spaced subtitle underneath
+  if (subtitle) {
+    const chars = subtitle.split('').join(' ');
+    ctx.fillStyle = 'rgba(190, 170, 235, 0.55)';
+    ctx.font = `700 ${22}px Inter`;
+    ctx.fillText(chars, W / 2, H / 2 + H * 0.22);
+  }
+
+  // Thin accent line above title
+  const lineGrad = ctx.createLinearGradient(W * 0.3, 0, W * 0.7, 0);
+  lineGrad.addColorStop(0, 'rgba(160, 120, 255, 0)');
+  lineGrad.addColorStop(0.5, 'rgba(190, 160, 255, 0.8)');
+  lineGrad.addColorStop(1, 'rgba(160, 120, 255, 0)');
+  ctx.fillStyle = lineGrad;
+  ctx.fillRect(W * 0.3, H * 0.17, W * 0.4, 2);
+
+  return new AttachmentBuilder(canvas.toBuffer('image/png'), { name: 'banner.png' });
+}
+
 function progressBar(current, max, length = 20) {
   const filled = max > 0 ? Math.round((current / max) * length) : 0;
   const empty = length - filled;
   return '\u2588'.repeat(filled) + '\u2591'.repeat(empty);
 }
 
-module.exports = { generateProfileCard, progressBar };
+module.exports = { generateProfileCard, generateBrandBanner, progressBar };

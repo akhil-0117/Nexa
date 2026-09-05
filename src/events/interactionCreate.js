@@ -72,6 +72,10 @@ module.exports = {
             await navToModSelect(interaction);
             return;
           }
+          if (id === 'help_home') {
+            await navToHelpHome(interaction);
+            return;
+          }
 
           // Death Note buttons
           if (id.startsWith('dn_join_')) {
@@ -537,18 +541,14 @@ async function navToAccount(interaction) {
     .setAuthor({ name: `${interaction.user.username} \u2014 Account`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
     .setColor(config.colors.primary)
     .setDescription(
+      `Select a section from the dropdown below.\n\n` +
       `${divider}\n` +
-      `**Level:** ${xpInfo.level} \u00b7 ${rank.name}\n` +
-      `**XP:** ${xpInfo.xp}/${xpInfo.xpNeeded}\n` +
-      `**Credits:** ${formatCredits(userData.credits)}\n` +
-      `**Reputation:** ${repInfo.score}/100 \u00b7 ${repInfo.level.label}\n` +
-      `**Role:** ${roleName}\n` +
-      `**Messages:** ${userData.messages}\n` +
-      `**Games:** ${userData.games_won}W / ${userData.games_played}P\n` +
-      `**Achievements:** ${getAchievements(interaction.user.id, interaction.guild.id).length}/${getAllAchievements().length}\n` +
+      `**Level** ${xpInfo.level} \u00b7 ${rank.name}  \u00b7  **XP** ${xpInfo.xp}/${xpInfo.xpNeeded}\n` +
+      `**Credits** ${formatCredits(userData.credits)}  \u00b7  **Reputation** ${repInfo.score}/100\n` +
+      `**Role** ${roleName}\n` +
       `${divider}`
     )
-    .setFooter({ text: 'Select an option below' })
+    .setFooter({ text: 'NEXAVERSE Account System' })
     .setTimestamp();
 
   // GIF for President/Co-President
@@ -561,19 +561,18 @@ async function navToAccount(interaction) {
   const select = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId('account_select')
-      .setPlaceholder('Choose an option...')
+      .setPlaceholder('Browse your account...')
       .addOptions([
-        { label: 'Profile', value: 'profile', description: 'View your profile card' },
-        { label: 'Economy', value: 'economy', description: 'Daily, weekly, transfers' },
-        { label: 'Activity', value: 'activity', description: 'Message stats and streaks' },
+        { label: 'Profile', value: 'profile', description: 'View your visual profile card' },
+        { label: 'Activity', value: 'activity', description: 'Messages, XP and level' },
         { label: 'Reputation', value: 'reputation', description: 'Trust score and restrictions' },
         { label: 'Achievements', value: 'achievements', description: 'Unlocked achievements' },
-        { label: 'Transactions', value: 'transactions', description: 'Recent transactions' },
+        { label: 'Transactions', value: 'transactions', description: 'Recent credit history' },
         { label: 'Invites', value: 'invites', description: 'Invite statistics' },
       ])
   );
 
-  await interaction.update({ embeds: [embed], components: [select] });
+  await interaction.update({ embeds: [embed], files: [], components: [select] });
 }
 
 async function navToWallet(interaction) {
@@ -589,10 +588,10 @@ async function navToWallet(interaction) {
 
   const embed = new EmbedBuilder()
     .setAuthor({ name: `${interaction.user.username} \u2014 Wallet`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
-    .setTitle('NEXAVERSE Wallet')
+    .setTitle('NEXAVERSE \u00b7 Wallet')
     .setColor(config.colors.economy)
-    .setDescription(`${divider}\n**Balance:** ${formatCredits(userData.credits)}\n**Reputation:** ${repInfo.score}/100 \u00b7 ${repInfo.level.label}\n**Max Transfer:** ${formatCredits(maxTransfer)}\n${divider}`)
-    .setFooter({ text: 'NEXAVERSE Wallet' })
+    .setDescription(`${divider}\n**Balance** ${formatCredits(userData.credits)}\n**Reputation** ${repInfo.score}/100 \u00b7 ${repInfo.level.label}\n**Max Transfer** ${formatCredits(maxTransfer)}\n${divider}`)
+    .setFooter({ text: 'NEXAVERSE Wallet System' })
     .setTimestamp();
 
   const select = new ActionRowBuilder().addComponents(
@@ -608,7 +607,7 @@ async function navToWallet(interaction) {
       ])
   );
 
-  await interaction.update({ embeds: [embed], components: [select] });
+  await interaction.update({ embeds: [embed], files: [], components: [select] });
 }
 
 async function navToGames(interaction) {
@@ -623,28 +622,29 @@ async function navToGames(interaction) {
   const divider = '\u2501'.repeat(32);
 
   const embed = new EmbedBuilder()
-    .setTitle('NEXAVERSE Games')
+    .setAuthor({ name: `${interaction.user.username} \u2014 Games`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
+    .setTitle('NEXAVERSE \u00b7 Games Arcade')
     .setColor(config.colors.game)
-    .setDescription(`${divider}\n**Balance:** ${formatCredits(userData.credits)}\n**Max Bet:** ${formatCredits(maxBet)}\n**Reputation:** ${repInfo.score}/100 \u00b7 ${repInfo.level.label}\n${divider}`)
-    .setFooter({ text: 'Select a game below' })
+    .setDescription(`${divider}\n**Balance** ${formatCredits(userData.credits)}  \u00b7  **Max Bet** ${formatCredits(maxBet)}\n**Reputation** ${repInfo.score}/100 \u00b7 ${repInfo.level.label}\n${divider}\nOne game at a time. All results are logged.`)
+    .setFooter({ text: 'NEXAVERSE Games Arcade' })
     .setTimestamp();
 
   const select = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId('game_select')
-      .setPlaceholder('Choose a game...')
+      .setPlaceholder('Select a game...')
       .addOptions([
-        { label: 'Roulette', value: 'roulette', description: 'Red, black, green, or number' },
-        { label: 'Coinflip', value: 'coinflip', description: 'Heads or tails, 2x payout' },
-        { label: 'Blackjack', value: 'blackjack', description: 'Beat the dealer to 21' },
-        { label: 'Slots', value: 'slots', description: 'Spin to win big' },
-        { label: 'Dice', value: 'dice', description: 'Predict a number 1-6' },
-        { label: 'Higher/Lower', value: 'higherlower', description: 'Guess higher or lower' },
-        { label: 'RPS', value: 'rps', description: 'Rock Paper Scissors' },
+        { label: 'Roulette', value: 'roulette', description: 'Red, black, green, or a number 0-36' },
+        { label: 'Coinflip', value: 'coinflip', description: 'Heads or tails \u00b7 2x payout' },
+        { label: 'Blackjack', value: 'blackjack', description: 'Beat the dealer to 21 \u00b7 2.5x' },
+        { label: 'Slots', value: 'slots', description: 'Match symbols \u00b7 up to 100x' },
+        { label: 'Dice', value: 'dice', description: 'Predict the roll \u00b7 6x payout' },
+        { label: 'Higher / Lower', value: 'higherlower', description: 'Guess the next number \u00b7 3x' },
+        { label: 'Rock Paper Scissors', value: 'rps', description: 'Beat the bot \u00b7 2x payout' },
       ])
   );
 
-  await interaction.update({ embeds: [embed], components: [select] });
+  await interaction.update({ embeds: [embed], files: [], components: [select] });
 }
 
 async function navToModSelect(interaction) {
@@ -768,22 +768,60 @@ async function handleStaffPanelSelect(interaction) {
 // === HELP CATEGORY SELECT ===
 
 async function handleHelpCategorySelect(interaction) {
+  const { CATEGORIES } = require('../commands/help');
   const category = interaction.values[0];
   const divider = '\u2501'.repeat(32);
 
-  const categories = {
-    general: { title: 'General', desc: '`/account` \u2014 Account dashboard\n`/wallet` \u2014 Wallet & transfers\n`/games` \u2014 Games arcade\n`/stats` \u2014 Server stats' },
-    moderation: { title: 'Moderation', desc: '`/moderation` \u2014 Mod panel (Staff)\n`/staff` \u2014 Staff panel (Staff)' },
-    utility: { title: 'Utility', desc: '`/ping` \u2014 Bot latency\n`/botinfo` \u2014 Bot info\n`/serverinfo` \u2014 Server info\n`/verify` \u2014 Verify account\n`/poll` \u2014 Create polls' },
-    staff: { title: 'Staff', desc: '`/staff` \u2014 Staff panel\n`/moderation` \u2014 Mod tools\n`/config` \u2014 Server config (Admin)' },
-  };
-  const cat = categories[category] || { title: category, desc: 'No commands listed.' };
+  const cat = CATEGORIES[category] || { title: category, desc: 'No commands listed.' };
   const embed = new EmbedBuilder()
-    .setTitle(cat.title)
+    .setTitle(`NEXAVERSE \u00b7 ${cat.title}`)
     .setDescription(`${divider}\n${cat.desc}\n${divider}`)
     .setColor(config.colors.primary)
     .setTimestamp();
-  await safeReply(interaction, { embeds: [embed] });
+
+  const rows = [
+    new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId('help_category_select')
+        .setPlaceholder('Browse commands by category...')
+        .addOptions([
+          { label: 'General', value: 'general', description: 'Account, wallet, games' },
+          { label: 'Moderation', value: 'moderation', description: 'Mod tools and staff' },
+          { label: 'Utility', value: 'utility', description: 'Ping, info, verify, poll' },
+          { label: 'Staff', value: 'staff', description: 'Staff panel and config' },
+        ])
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('help_home').setLabel('Home').setStyle(ButtonStyle.Secondary)
+    ),
+  ];
+
+  await interaction.update({ embeds: [embed], files: [], components: rows });
+}
+
+async function navToHelpHome(interaction) {
+  const { homeEmbed } = require('../commands/help');
+  const { generateBrandBanner } = require('../utils/images');
+  const banner = await generateBrandBanner('NEXAVERSE', 'HELP CENTER');
+
+  const rows = [
+    new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId('help_category_select')
+        .setPlaceholder('Browse commands by category...')
+        .addOptions([
+          { label: 'General', value: 'general', description: 'Account, wallet, games' },
+          { label: 'Moderation', value: 'moderation', description: 'Mod tools and staff' },
+          { label: 'Utility', value: 'utility', description: 'Ping, info, verify, poll' },
+          { label: 'Staff', value: 'staff', description: 'Staff panel and config' },
+        ])
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('help_home').setLabel('Home').setStyle(ButtonStyle.Secondary)
+    ),
+  ];
+
+  await interaction.update({ embeds: [homeEmbed(banner)], files: [banner], components: rows });
 }
 
 // === CONFIG SELECT ===

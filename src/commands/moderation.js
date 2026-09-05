@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, UserSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
 const config = require('../config');
-const { isStaff } = require('../utils/permissions');
+const { isStaff, getStaffRole } = require('../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -15,14 +15,23 @@ module.exports = {
       });
     }
 
-    const { getStaffRole } = require('../utils/permissions');
+    await interaction.deferReply();
+
     const staffRole = getStaffRole(interaction.member);
     const divider = '\u2501'.repeat(32);
 
     const embed = new EmbedBuilder()
-      .setTitle('Moderation Panel')
+      .setAuthor({ name: `${interaction.user.username} \u2014 Moderation`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
+      .setTitle('NEXAVERSE \u00b7 Moderation Panel')
       .setColor(config.colors.moderation)
-      .setDescription(`${divider}\n**Your Level:** ${staffRole?.label || 'Staff'}\n\nSelect a member below to moderate.\n${divider}`)
+      .setDescription(
+        `${divider}\n` +
+        `**Your Level** ${staffRole?.label || 'Staff'}\n\n` +
+        `Select a member from the dropdown below, then choose an action.\n` +
+        `All actions are logged with your ID and a case number.\n` +
+        `${divider}`
+      )
+      .setFooter({ text: 'NEXAVERSE Moderation System' })
       .setTimestamp();
 
     const userSelect = new ActionRowBuilder().addComponents(
@@ -33,6 +42,6 @@ module.exports = {
         .setMaxValues(1)
     );
 
-    await interaction.reply({ embeds: [embed], components: [userSelect] });
+    await interaction.editReply({ embeds: [embed], components: [userSelect] });
   },
 };
