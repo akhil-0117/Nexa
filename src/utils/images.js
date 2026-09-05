@@ -39,20 +39,15 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function clipCircle(ctx, cx, cy, r) {
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.clip();
-}
-
 async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleName) {
-  const W = 900;
-  const H = 560;
+  // Bigger canvas for Discord display
+  const W = 1200;
+  const H = 740;
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
+  const S = W / 900; // scale factor from original 900-wide design
 
   // ===== STAGE BACKGROUND =====
-  // Base dark gradient
   const baseBg = ctx.createRadialGradient(W * 0.5, H * 0.5, 10, W * 0.5, H * 0.5, W * 0.7);
   baseBg.addColorStop(0, '#1c1040');
   baseBg.addColorStop(0.55, '#0d0724');
@@ -85,11 +80,12 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   ctx.fillRect(0, 0, W, H);
 
   // ===== BEZEL =====
-  const bezelX = 28;
-  const bezelY = 28;
-  const bezelW = W - 56;
-  const bezelH = H - 56;
-  const bezelR = 48;
+  const bezelMargin = 36 * S;
+  const bezelX = bezelMargin;
+  const bezelY = bezelMargin;
+  const bezelW = W - bezelMargin * 2;
+  const bezelH = H - bezelMargin * 2;
+  const bezelR = 48 * S;
 
   // Bezel gradient background
   const bezelGrad = ctx.createLinearGradient(bezelX, bezelY, bezelX + bezelW * 0.42, bezelY + bezelH);
@@ -103,28 +99,28 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   // Bezel outer glow
   ctx.save();
   ctx.shadowColor = 'rgba(110, 60, 230, 0.85)';
-  ctx.shadowBlur = 50;
+  ctx.shadowBlur = 60 * S;
   ctx.strokeStyle = 'rgba(185, 155, 255, 0.22)';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.5;
   roundRect(ctx, bezelX, bezelY, bezelW, bezelH, bezelR);
   ctx.stroke();
   ctx.restore();
 
   // Top highlight on bezel
-  const bezelHighlight = ctx.createLinearGradient(bezelX, bezelY, bezelX, bezelY + 30);
-  bezelHighlight.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
-  bezelHighlight.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = bezelHighlight;
-  roundRect(ctx, bezelX, bezelY, bezelW, 30, bezelR);
+  const bezelHL = ctx.createLinearGradient(bezelX, bezelY, bezelX, bezelY + 30 * S);
+  bezelHL.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
+  bezelHL.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = bezelHL;
+  roundRect(ctx, bezelX, bezelY, bezelW, 30 * S, bezelR);
   ctx.fill();
 
   // ===== CARD FACE =====
-  const pad = 13;
+  const pad = 14 * S;
   const cardX = bezelX + pad;
   const cardY = bezelY + pad;
   const cardW = bezelW - pad * 2;
   const cardH = bezelH - pad * 2;
-  const cardR = 36;
+  const cardR = 36 * S;
 
   // Card background
   const cardBg = ctx.createLinearGradient(cardX, cardY, cardX + cardW * 0.17, cardY + cardH);
@@ -144,17 +140,16 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   ctx.fill();
 
   // Card top inner highlight
-  const cardInnerHL = ctx.createLinearGradient(cardX, cardY, cardX, cardY + 20);
+  const cardInnerHL = ctx.createLinearGradient(cardX, cardY, cardX, cardY + 20 * S);
   cardInnerHL.addColorStop(0, 'rgba(255, 255, 255, 0.10)');
   cardInnerHL.addColorStop(1, 'rgba(255, 255, 255, 0)');
   ctx.fillStyle = cardInnerHL;
-  roundRect(ctx, cardX, cardY, cardW, 20, cardR);
+  roundRect(ctx, cardX, cardY, cardW, 20 * S, cardR);
   ctx.fill();
 
-  // Big luminous bloom from bottom (the HTML card::before)
+  // Big luminous bloom from bottom
   ctx.save();
   ctx.globalAlpha = 0.95;
-  const bloomY = cardY + cardH * 0.28;
   const bloomH = cardH * 0.72;
   const bloomGrad = ctx.createRadialGradient(cardX + cardW * 0.5, cardY + cardH, 0, cardX + cardW * 0.5, cardY + cardH, bloomH * 1.2);
   bloomGrad.addColorStop(0, 'rgba(255, 255, 255, 0.75)');
@@ -163,7 +158,7 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   bloomGrad.addColorStop(0.58, 'rgba(124, 77, 255, 0.22)');
   bloomGrad.addColorStop(0.78, 'rgba(124, 77, 255, 0)');
   ctx.fillStyle = bloomGrad;
-  ctx.fillRect(cardX - cardW * 0.12, bloomY, cardW * 1.24, bloomH);
+  ctx.fillRect(cardX - cardW * 0.12, cardY + cardH * 0.28, cardW * 1.24, bloomH);
   ctx.restore();
 
   // Clip card to rounded rect
@@ -172,25 +167,25 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   ctx.clip();
 
   // ===== HEADER: Avatar + Info =====
-  const avatarCX = cardX + 95;
-  const avatarCY = cardY + 95;
-  const avatarR = 63;
+  const avatarCX = cardX + 120 * S;
+  const avatarCY = cardY + 120 * S;
+  const avatarR = 82 * S;
 
   // Avatar halo glow
   ctx.save();
-  const haloGrad = ctx.createRadialGradient(avatarCX, avatarCY, avatarR * 0.5, avatarCX, avatarCY, avatarR + 20);
+  const haloGrad = ctx.createRadialGradient(avatarCX, avatarCY, avatarR * 0.5, avatarCX, avatarCY, avatarR + 28 * S);
   haloGrad.addColorStop(0, 'rgba(145, 95, 255, 0.60)');
   haloGrad.addColorStop(0.7, 'rgba(145, 95, 255, 0)');
   ctx.fillStyle = haloGrad;
   ctx.beginPath();
-  ctx.arc(avatarCX, avatarCY, avatarR + 20, 0, Math.PI * 2);
+  ctx.arc(avatarCX, avatarCY, avatarR + 28 * S, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
-  // Avatar conic ring (simplified as gradient ring)
+  // Avatar conic ring
   ctx.save();
-  const ringOuter = avatarR + 5;
-  const ringInner = avatarR + 2;
+  const ringOuter = avatarR + 6 * S;
+  const ringInner = avatarR + 3 * S;
   const conicGrad = ctx.createLinearGradient(avatarCX - ringOuter, avatarCY - ringOuter, avatarCX + ringOuter, avatarCY + ringOuter);
   conicGrad.addColorStop(0, 'rgba(216, 195, 255, 0.9)');
   conicGrad.addColorStop(0.12, 'rgba(124, 77, 255, 0.15)');
@@ -213,19 +208,19 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
   ctx.fillStyle = avatarBg;
   ctx.fill();
-
-  // Avatar border
   ctx.strokeStyle = 'rgba(185, 155, 255, 0.6)';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.5 * S;
   ctx.stroke();
+  ctx.restore();
 
   // Avatar glow shadow
+  ctx.save();
   ctx.shadowColor = 'rgba(124, 77, 255, 0.7)';
-  ctx.shadowBlur = 38;
+  ctx.shadowBlur = 45 * S;
   ctx.beginPath();
   ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
   ctx.strokeStyle = 'rgba(185, 155, 255, 0.6)';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.5 * S;
   ctx.stroke();
   ctx.shadowBlur = 0;
   ctx.restore();
@@ -236,9 +231,11 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     const buffer = await downloadImage(avatarUrl);
     const avatarImg = await loadImage(buffer);
     ctx.save();
-    clipCircle(ctx, avatarCX, avatarCY, avatarR);
+    ctx.beginPath();
+    ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
+    ctx.clip();
     ctx.drawImage(avatarImg, avatarCX - avatarR, avatarCY - avatarR, avatarR * 2, avatarR * 2);
-    // Top sheen on avatar
+    // Top sheen
     const sheen = ctx.createRadialGradient(avatarCX - avatarR * 0.3, avatarCY - avatarR * 0.4, 0, avatarCX, avatarCY, avatarR);
     sheen.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
     sheen.addColorStop(0.55, 'rgba(255, 255, 255, 0)');
@@ -246,53 +243,54 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     ctx.fillRect(avatarCX - avatarR, avatarCY - avatarR, avatarR * 2, avatarR * 2);
     ctx.restore();
   } catch (e) {
-    // Fallback
     ctx.save();
-    clipCircle(ctx, avatarCX, avatarCY, avatarR);
+    ctx.beginPath();
+    ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
+    ctx.clip();
     const fbGrad = ctx.createLinearGradient(avatarCX - avatarR, avatarCY - avatarR, avatarCX + avatarR, avatarCY + avatarR);
     fbGrad.addColorStop(0, '#322063');
     fbGrad.addColorStop(1, '#160e36');
     ctx.fillStyle = fbGrad;
     ctx.fillRect(avatarCX - avatarR, avatarCY - avatarR, avatarR * 2, avatarR * 2);
     ctx.fillStyle = '#ffffff';
-    ctx.font = '800 52px Sora';
+    ctx.font = `800 ${68 * S}px Sora`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(user.username.charAt(0).toUpperCase(), avatarCX, avatarCY + 2);
+    ctx.fillText(user.username.charAt(0).toUpperCase(), avatarCX, avatarCY + 2 * S);
     ctx.restore();
   }
 
   // ===== RIGHT SIDE: Brand + Username + Badges =====
-  const infoX = cardX + 185;
-  let infoY = cardY + 28;
+  const infoX = cardX + 240 * S;
+  let infoY = cardY + 36 * S;
 
   // Brand "NEXAVERSE" with line
   ctx.fillStyle = '#b49aff';
   ctx.globalAlpha = 0.85;
-  ctx.font = '700 12px Inter';
+  ctx.font = `700 ${16 * S}px Inter`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('NEXAVERSE', infoX, infoY + 2);
+  ctx.fillText('NEXAVERSE', infoX, infoY);
 
   // Brand line
-  const brandLineX = infoX + ctx.measureText('NEXAVERSE').width + 10;
-  const brandLineGrad = ctx.createLinearGradient(brandLineX, 0, brandLineX + 120, 0);
+  const brandLineX = infoX + ctx.measureText('NEXAVERSE').width + 14 * S;
+  const brandLineGrad = ctx.createLinearGradient(brandLineX, 0, brandLineX + 160 * S, 0);
   brandLineGrad.addColorStop(0, 'rgba(180, 148, 255, 0.55)');
   brandLineGrad.addColorStop(1, 'rgba(180, 148, 255, 0)');
   ctx.strokeStyle = brandLineGrad;
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(brandLineX, infoY + 8);
-  ctx.lineTo(brandLineX + 120, infoY + 8);
+  ctx.moveTo(brandLineX, infoY + 10 * S);
+  ctx.lineTo(brandLineX + 160 * S, infoY + 10 * S);
   ctx.stroke();
   ctx.globalAlpha = 1;
 
-  infoY += 24;
+  infoY += 32 * S;
 
-  // Username (Sora, large, white with subtle gradient)
+  // Username (Sora, large, white with gradient)
   const displayName = user.username.length > 14 ? user.username.substring(0, 12) + '..' : user.username;
-  ctx.font = '800 40px Sora';
-  const nameGrad = ctx.createLinearGradient(infoX, infoY, infoX, infoY + 40);
+  ctx.font = `800 ${52 * S}px Sora`;
+  const nameGrad = ctx.createLinearGradient(infoX, infoY, infoX, infoY + 52 * S);
   nameGrad.addColorStop(0.55, '#ffffff');
   nameGrad.addColorStop(1, '#d9caff');
   ctx.fillStyle = nameGrad;
@@ -302,22 +300,20 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   // Name glow
   ctx.save();
   ctx.shadowColor = 'rgba(150, 110, 255, 0.5)';
-  ctx.shadowBlur = 24;
+  ctx.shadowBlur = 30 * S;
   ctx.fillText(displayName, infoX, infoY);
   ctx.restore();
-  // Name text
   ctx.fillText(displayName, infoX, infoY);
 
-  infoY += 50;
+  infoY += 62 * S;
 
   // Role badge (pill)
-  ctx.font = '600 12.5px Inter';
+  ctx.font = `600 ${16 * S}px Inter`;
   const roleText = roleName;
   const roleTW = ctx.measureText(roleText).width;
-  const pillH = 32;
-  const pillPadX = 17;
+  const pillH = 38 * S;
+  const pillPadX = 22 * S;
 
-  // Role pill
   const rolePillW = roleTW + pillPadX * 2;
   const rolePillGrad = ctx.createLinearGradient(infoX, infoY, infoX, infoY + pillH);
   rolePillGrad.addColorStop(0, 'rgba(140, 90, 255, 0.34)');
@@ -325,32 +321,21 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   ctx.fillStyle = rolePillGrad;
   roundRect(ctx, infoX, infoY, rolePillW, pillH, pillH / 2);
   ctx.fill();
-
-  // Role pill border
   ctx.strokeStyle = 'rgba(190, 160, 255, 0.42)';
   ctx.lineWidth = 1;
   roundRect(ctx, infoX, infoY, rolePillW, pillH, pillH / 2);
   ctx.stroke();
 
   // Role pill inner highlight
-  const pillHL = ctx.createLinearGradient(infoX, infoY, infoX, infoY + 8);
+  const pillHL = ctx.createLinearGradient(infoX, infoY, infoX, infoY + 10 * S);
   pillHL.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
   pillHL.addColorStop(1, 'rgba(255, 255, 255, 0)');
   ctx.fillStyle = pillHL;
-  roundRect(ctx, infoX, infoY, rolePillW, 8, pillH / 2);
+  roundRect(ctx, infoX, infoY, rolePillW, 10 * S, pillH / 2);
   ctx.fill();
-
-  // Role pill glow
-  ctx.save();
-  ctx.shadowColor = 'rgba(124, 77, 255, 0.5)';
-  ctx.shadowBlur = 16;
-  ctx.fillStyle = 'transparent';
-  roundRect(ctx, infoX, infoY, rolePillW, pillH, pillH / 2);
-  ctx.fill();
-  ctx.restore();
 
   ctx.fillStyle = '#e2d7ff';
-  ctx.font = '600 12.5px Inter';
+  ctx.font = `600 ${16 * S}px Inter`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(roleText, infoX + rolePillW / 2, infoY + pillH / 2);
@@ -359,7 +344,7 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   const rankText = rank.name;
   const rankTW = ctx.measureText(rankText).width;
   const rankPillW = rankTW + pillPadX * 2;
-  const rankPillX = infoX + rolePillW + 10;
+  const rankPillX = infoX + rolePillW + 12 * S;
 
   ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
   roundRect(ctx, rankPillX, infoY, rankPillW, pillH, pillH / 2);
@@ -370,12 +355,12 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   ctx.stroke();
 
   ctx.fillStyle = '#c2b2ec';
-  ctx.font = '600 12.5px Inter';
+  ctx.font = `600 ${16 * S}px Inter`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(rankText, rankPillX + rankPillW / 2, infoY + pillH / 2);
 
-  infoY += pillH + 18;
+  infoY += pillH + 24 * S;
 
   // ===== STAT CARDS =====
   const stats = [
@@ -388,16 +373,16 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   ];
 
   const colCount = 3;
-  const scGap = 14;
-  const scTotalW = cardW - 38 * 2;
+  const scGap = 16 * S;
+  const scPaddingX = 48 * S;
+  const scTotalW = cardW - scPaddingX * 2;
   const scW = (scTotalW - scGap * (colCount - 1)) / colCount;
-  const scH = 65;
-  const scPaddingX = 18;
+  const scH = 82 * S;
 
   for (let i = 0; i < stats.length; i++) {
     const col = i % colCount;
     const row = Math.floor(i / colCount);
-    const sx = cardX + 38 + col * (scW + scGap);
+    const sx = cardX + scPaddingX + col * (scW + scGap);
     const sy = infoY + row * (scH + scGap);
 
     // Stat card background
@@ -405,13 +390,13 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     scBg.addColorStop(0, 'rgba(255, 255, 255, 0.10)');
     scBg.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
     ctx.fillStyle = scBg;
-    roundRect(ctx, sx, sy, scW, scH, 20);
+    roundRect(ctx, sx, sy, scW, scH, 22 * S);
     ctx.fill();
 
     // Stat card border
     ctx.strokeStyle = 'rgba(185, 155, 255, 0.22)';
     ctx.lineWidth = 1;
-    roundRect(ctx, sx, sy, scW, scH, 20);
+    roundRect(ctx, sx, sy, scW, scH, 22 * S);
     ctx.stroke();
 
     // Top sheen
@@ -432,80 +417,79 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     underGlow.addColorStop(0.55, 'rgba(124, 77, 255, 0.15)');
     underGlow.addColorStop(0.75, 'rgba(124, 77, 255, 0)');
     ctx.fillStyle = underGlow;
-    roundRect(ctx, sx, sy, scW, scH, 20);
+    roundRect(ctx, sx, sy, scW, scH, 22 * S);
     ctx.fill();
 
     // Inner shadow at top
-    const innerShadow = ctx.createLinearGradient(sx, sy, sx, sy + 10);
+    const innerShadow = ctx.createLinearGradient(sx, sy, sx, sy + 12 * S);
     innerShadow.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
     innerShadow.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = innerShadow;
-    roundRect(ctx, sx, sy, scW, 10, 20);
+    roundRect(ctx, sx, sy, scW, 12 * S, 22 * S);
     ctx.fill();
 
     // Label with dot
-    ctx.fillStyle = '#b3a1e6';
-    ctx.font = '700 10.5px Inter';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
+    const dotX = sx + 20 * S;
+    const dotY = sy + 20 * S;
 
     // Dot
-    const dotX = sx + scPaddingX;
-    const dotY = sy + 16;
     ctx.beginPath();
-    ctx.arc(dotX, dotY, 2.5, 0, Math.PI * 2);
+    ctx.arc(dotX, dotY, 3 * S, 0, Math.PI * 2);
     ctx.fillStyle = '#b48cff';
     ctx.fill();
     ctx.save();
     ctx.shadowColor = 'rgba(180, 140, 255, 0.9)';
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 10 * S;
     ctx.beginPath();
-    ctx.arc(dotX, dotY, 2.5, 0, Math.PI * 2);
+    ctx.arc(dotX, dotY, 3 * S, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
     ctx.fillStyle = '#b3a1e6';
-    ctx.fillText(stats[i].label.toUpperCase(), dotX + 9, dotY - 5);
+    ctx.font = `700 ${13 * S}px Inter`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(stats[i].label.toUpperCase(), dotX + 12 * S, dotY - 6 * S);
 
     // Value
     ctx.fillStyle = '#ffffff';
-    ctx.font = '800 22px Sora';
+    ctx.font = `800 ${28 * S}px Sora`;
     ctx.save();
     ctx.shadowColor = 'rgba(160, 120, 255, 0.35)';
-    ctx.shadowBlur = 18;
-    ctx.fillText(stats[i].value, sx + scPaddingX, sy + 34);
+    ctx.shadowBlur = 22 * S;
+    ctx.fillText(stats[i].value, sx + 20 * S, sy + 42 * S);
     ctx.restore();
-    ctx.fillText(stats[i].value, sx + scPaddingX, sy + 34);
+    ctx.fillText(stats[i].value, sx + 20 * S, sy + 42 * S);
   }
 
-  infoY += scH * 2 + scGap + 18;
+  infoY += scH * 2 + scGap + 24 * S;
 
   // ===== XP PROGRESS BAR =====
-  const barX = cardX + 38;
-  const barW = cardW - 76;
-  const barH = 15;
+  const barX = cardX + scPaddingX;
+  const barW = cardW - scPaddingX * 2;
+  const barH = 18 * S;
   const progress = xpInfo.xpNeeded > 0 ? Math.min(xpInfo.xp / xpInfo.xpNeeded, 1) : 0;
 
   // XP label row
   ctx.fillStyle = '#b3a1e6';
-  ctx.font = '700 11px Inter';
+  ctx.font = `700 ${14 * S}px Inter`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText('EXPERIENCE', barX, infoY);
 
   // XP value on right
   ctx.fillStyle = '#f2ecff';
-  ctx.font = '700 14px Sora';
+  ctx.font = `700 ${17 * S}px Sora`;
   ctx.save();
   ctx.shadowColor = 'rgba(170, 130, 255, 0.5)';
-  ctx.shadowBlur = 14;
+  ctx.shadowBlur = 16 * S;
   ctx.textAlign = 'right';
   ctx.fillText(`XP ${xpInfo.xp} / ${xpInfo.xpNeeded}`, barX + barW, infoY);
   ctx.restore();
   ctx.textAlign = 'right';
   ctx.fillText(`XP ${xpInfo.xp} / ${xpInfo.xpNeeded}`, barX + barW, infoY);
 
-  infoY += 22;
+  infoY += 28 * S;
 
   // Track background
   ctx.save();
@@ -518,19 +502,18 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   ctx.stroke();
 
   // Inner shadow
-  const trackShadow = ctx.createLinearGradient(barX, infoY, barX, infoY + 8);
+  const trackShadow = ctx.createLinearGradient(barX, infoY, barX, infoY + 10 * S);
   trackShadow.addColorStop(0, 'rgba(0, 0, 0, 0.65)');
   trackShadow.addColorStop(1, 'rgba(0, 0, 0, 0)');
   ctx.fillStyle = trackShadow;
-  roundRect(ctx, barX, infoY, barW, 8, barH / 2);
+  roundRect(ctx, barX, infoY, barW, 10 * S, barH / 2);
   ctx.fill();
   ctx.restore();
 
   // Fill bar
   if (progress > 0) {
-    const fillW = Math.max(barW * progress, 20);
+    const fillW = Math.max(barW * progress, 24 * S);
 
-    // Clip to track shape
     ctx.save();
     roundRect(ctx, barX, infoY, barW, barH, barH / 2);
     ctx.clip();
@@ -544,9 +527,9 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     ctx.fillStyle = fillGrad;
     ctx.fillRect(barX, infoY, fillW, barH);
 
-    // Glow on fill
+    // Glow
     ctx.shadowColor = 'rgba(150, 100, 255, 0.9)';
-    ctx.shadowBlur = 22;
+    ctx.shadowBlur = 26 * S;
     ctx.fillStyle = 'transparent';
     ctx.fillRect(barX, infoY, fillW, barH);
     ctx.shadowBlur = 0;
@@ -554,12 +537,12 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     // Diagonal stripe texture
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
-    for (let sx = barX - 20; sx < barX + fillW + 20; sx += 18) {
+    for (let sx2 = barX - 20; sx2 < barX + fillW + 20; sx2 += 22 * S) {
       ctx.beginPath();
-      ctx.moveTo(sx, infoY + barH);
-      ctx.lineTo(sx + 8, infoY);
-      ctx.lineTo(sx + 10, infoY);
-      ctx.lineTo(sx + 18, infoY + barH);
+      ctx.moveTo(sx2, infoY + barH);
+      ctx.lineTo(sx2 + 10 * S, infoY);
+      ctx.lineTo(sx2 + 12 * S, infoY);
+      ctx.lineTo(sx2 + 22 * S, infoY + barH);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -569,10 +552,10 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
 
   // ===== FOOTER =====
   ctx.fillStyle = 'rgba(200, 175, 255, 0.38)';
-  ctx.font = '700 10px Inter';
+  ctx.font = `700 ${13 * S}px Inter`;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
-  ctx.fillText('NEXAVERSE', cardX + cardW - 24, cardY + cardH - 15);
+  ctx.fillText('NEXAVERSE', cardX + cardW - 30 * S, cardY + cardH - 18 * S);
 
   ctx.restore(); // Unclip card
 

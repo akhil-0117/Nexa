@@ -257,11 +257,14 @@ async function handleBetModal(interaction, gameType) {
 
     // Log the game
     try {
-      await log(interaction.guild, 'games', `${gameName} ${isWin ? 'Won' : 'Lost'}`, {
+      const logDetails = {
         actor: interaction.user.id,
         amount: betAmount,
-        reason: isWin ? `Payout: ${result.payout}` : 'Lost',
-      });
+        reason: `${gameName}: ${result.description || result.result || 'Played'} | ${isWin ? `Won ${formatCredits(result.payout)}` : 'Lost'}`,
+        type: gameType,
+        footer: `Game ID: ${result.gameId || 'N/A'}`,
+      };
+      await log(interaction.guild, 'games', `${gameName} ${isWin ? 'Won' : 'Lost'}`, logDetails);
     } catch (e) {}
   } catch (error) {
     console.error(`[GAME] Error playing ${gameType}:`, error.message);

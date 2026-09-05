@@ -1,12 +1,24 @@
 const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, UserSelectMenuBuilder } = require('discord.js');
 const config = require('../config');
+const { isNewInteraction, checkRateLimit } = require('../utils/security');
 
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction, client) {
     try {
+      // Prevent duplicate interaction processing
+      if (!isNewInteraction(interaction.id)) return;
+
       // Handle slash commands
       if (interaction.isChatInputCommand()) {
+        // Rate limit slash commands
+        const rl = checkRateLimit(interaction.user.id, 'command');
+        if (!rl.allowed) {
+          return safeReply(interaction, {
+            embeds: [new EmbedBuilder().setTitle('Slow Down').setDescription(`You are doing that too fast. Try again in ${Math.ceil(rl.retryAfter / 1000)}s.`).setColor(config.colors.warning)],
+            flags: 64,
+          });
+        }
         const command = client.commands.get(interaction.commandName);
         if (!command) return;
         try {

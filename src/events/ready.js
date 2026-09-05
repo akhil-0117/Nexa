@@ -1,5 +1,6 @@
 const { Events, ActivityType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../config');
+const { setLogChannel } = require('../systems/logging');
 
 module.exports = {
   name: Events.ClientReady,
@@ -13,6 +14,29 @@ module.exports = {
       activities: [{ name: 'NEXAVERSE | /help', type: ActivityType.Watching }],
       status: 'online',
     });
+
+    // Initialize log channels from env vars into database
+    for (const [, guild] of client.guilds.cache) {
+      const logChannels = {
+        moderation: config.logChannels.moderation,
+        members: config.logChannels.members,
+        messages: config.logChannels.messages,
+        economy: config.logChannels.economy,
+        games: config.logChannels.games,
+        giveaways: config.logChannels.giveaways,
+        events: config.logChannels.events,
+        tickets: config.logChannels.tickets,
+        reports: config.logChannels.reports,
+        security: config.logChannels.security,
+        staff: config.logChannels.staff,
+      };
+      for (const [category, channelId] of Object.entries(logChannels)) {
+        if (channelId) {
+          setLogChannel(guild.id, category, channelId);
+        }
+      }
+      console.log(`[NEXAVERSE] Log channels initialized for ${guild.name}`);
+    }
 
     // Post verification panel in the verification channel
     if (config.verificationChannelId) {
