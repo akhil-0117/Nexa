@@ -167,6 +167,8 @@ module.exports = {
           if (id.startsWith('mod_action_select_')) { await handleModActionSelect(interaction, id); return; }
           if (id.startsWith('wallet_transfer_select_')) { await handleWalletTransferSelect(interaction, id); return; }
           if (id === 'report_user_select') { await handleReportUserSelect(interaction); return; }
+          if (id === 'report_type_select') { await handleReportTypeSelect(interaction); return; }
+          if (id === 'report_category_select') { await handleReportCategorySelect(interaction); return; }
 
           await safeReply(interaction, {
             embeds: [new EmbedBuilder().setTitle('Expired').setDescription('This menu is no longer active. Use the command again.').setColor(config.colors.warning)],
@@ -2237,9 +2239,34 @@ async function handleDeathNoteAccuse(interaction, id) {
   }
 }
 
+
 // ===== REPORT SYSTEM =====
 
 let pendingReport = {};
+
+// Staff issue categories
+const STAFF_ISSUES = [
+  { label: 'Abuse of Power', value: 'abuse_of_power', description: 'Using staff tools unfairly or excessively' },
+  { label: 'Unfair Moderation', value: 'unfair_mod', description: 'Unjustified warns, mutes, kicks, or bans' },
+  { label: 'Discrimination', value: 'discrimination', description: 'Bias based on race, gender, status, etc.' },
+  { label: 'Favoritism', value: 'favoritism', description: 'Giving friends preferential treatment' },
+  { label: 'Breaking Server Rules', value: 'breaking_rules', description: 'Staff violating rules they enforce' },
+  { label: 'Harassment', value: 'harassment', description: 'Using position to harass or threaten members' },
+  { label: 'Leaking Info', value: 'leaking', description: 'Sharing private staff information' },
+  { label: 'Other (Write Your Own)', value: 'other_staff', description: 'Describe the issue manually' },
+];
+
+// Member issue categories
+const MEMBER_ISSUES = [
+  { label: 'Swearing / Profanity', value: 'swearing', description: 'Excessive or targeted profanity' },
+  { label: 'Threats / Violence', value: 'threats', description: 'Threatening other members' },
+  { label: 'Inappropriate Content', value: 'inappropriate', description: 'NSFW, gore, or disturbing content' },
+  { label: 'Harassment / Bullying', value: 'harassment_member', description: 'Targeting or bullying specific members' },
+  { label: 'Spam / Raid Behavior', value: 'spam', description: 'Mass messaging or raiding' },
+  { label: 'Scamming / Phishing', value: 'scam', description: 'Attempting to steal accounts or credits' },
+  { label: 'Impersonation', value: 'impersonation', description: 'Pretending to be staff or another member' },
+  { label: 'Other (Write Your Own)', value: 'other_member', description: 'Describe the issue manually' },
+];
 
 async function handleReportUserSelect(interaction) {
   const targetId = interaction.values[0];
@@ -2251,26 +2278,107 @@ async function handleReportUserSelect(interaction) {
     });
   }
   
+  // Store target, show staff vs member picker
   pendingReport[interaction.user.id] = { targetId, guildId: interaction.guild.id };
+  
+  const embed = new EmbedBuilder()
+    .setTitle('Report Type')
+    .setColor(config.colors.warning)
+    .setDescription(
+      '\u2501'.repeat(32) + '\n' +
+      '**Reporting** <@' + targetId + '>\n\n' +
+      'Is this a **staff member** abusing their powers, or a **regular member** violating rules?\n\n' +
+      'Choose the type below, then select the specific issue.'
+    )
+    .setTimestamp();
+  
+  const typeSelect = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('report_type_select')
+      .setPlaceholder('Select report type...')
+      .addOptions([
+        { label: 'Staff Issue', value: 'staff', description: 'Abuse of power, unfair moderation, etc.' },
+        { label: 'Member Issue', value: 'member', description: 'Swearing, threats, inappropriate content, etc.' },
+      ])
+  );
+  
+  await interaction.reply({ embeds: [embed], components: [typeSelect], flags: 64 });
+}
+
+async function handleReportTypeSelect(interaction) {
+  const report = pendingReport[interaction.user.id];
+  if (!report) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Expired').setDescription('Report session expired. Use `/report` again.').setColor(config.colors.warning)],
+      flags: 64,
+    });
+  }
+  
+  const type = interaction.values[0];
+  report.type = type;
+  
+  const categories = type === 'staff' ? STAFF_ISSUES : MEMBER_ISSUES;
+  const typeName = type === 'staff' ? 'Staff' : 'Member';
+  
+  const embed = new EmbedBuilder()
+    .setTitle('Report ' + typeName + ' - Issue Type')
+    .setColor(config.colors.warning)
+    .setDescription(
+      '\u2501'.repeat(32) + '\n' +
+      '**Reporting** <@' + report.targetId + '> as a **' + typeName + '**\n\n' +
+      'Select the type of violation. If none match, choose **Other** to write your own.\n' +
+      '\u2501'.repeat(32)
+    )
+    .setTimestamp();
+  
+  const categorySelect = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('report_category_select')
+      .setPlaceholder('Select the issue type...')
+      .addOptions(categories)
+  );
+  
+  await interaction.update({ embeds: [embed], components: [categorySelect] });
+}
+
+async function handleReportCategorySelect(interaction) {
+  const report = pendingReport[interaction.user.id];
+  if (!report) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Expired').setDescription('Report session expired. Use `/report` again.').setColor(config.colors.warning)],
+      flags: 64,
+    });
+  }
+  
+  const category = interaction.values[0];
+  report.category = category;
+  
+  // Find the category label for pre-filling
+  const categories = report.type === 'staff' ? STAFF_ISSUES : MEMBER_ISSUES;
+  const catInfo = categories.find(c => c.value === category);
+  const categoryLabel = catInfo ? catInfo.label : category;
+  
+  const isOther = category.startsWith('other_');
   
   const modal = new ModalBuilder()
     .setCustomId('report_reason_modal')
-    .setTitle('Report Reason')
+    .setTitle('Report Details')
     .addComponents(
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId('reason')
-          .setLabel('What happened?')
-          .setPlaceholder('Describe the issue in detail...')
+          .setLabel(isOther ? 'Describe the issue' : 'Additional details')
+          .setPlaceholder(isOther ? 'What happened? Describe the issue in detail...' : 'Add any extra context about ' + categoryLabel.toLowerCase() + '...')
           .setStyle(TextInputStyle.Paragraph)
           .setRequired(true)
           .setMaxLength(1000)
+          .setValue(isOther ? '' : categoryLabel + ': ')
       ),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
           .setCustomId('evidence')
           .setLabel('Evidence (optional)')
-          .setPlaceholder('Message links, screenshots, etc.')
+          .setPlaceholder('Message links, screenshots, timestamps...')
           .setStyle(TextInputStyle.Paragraph)
           .setRequired(false)
           .setMaxLength(500)
@@ -2284,7 +2392,7 @@ async function handleReportReasonModal(interaction) {
   const report = pendingReport[interaction.user.id];
   if (!report) {
     return interaction.reply({
-      embeds: [new EmbedBuilder().setTitle('Error').setDescription('Report session expired. Try again.').setColor(config.colors.error)],
+      embeds: [new EmbedBuilder().setTitle('Error').setDescription('Report session expired. Use `/report` again.').setColor(config.colors.error)],
       flags: 64,
     });
   }
@@ -2301,37 +2409,70 @@ async function handleReportReasonModal(interaction) {
   const reportId = generateId('RPT');
   const db = getDb();
   
-  db.prepare(`INSERT INTO reports (id, guild_id, reporter_id, target_id, reason, evidence, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`).run(
-    reportId, report.guildId, interaction.user.id, report.targetId, reason, evidence, Date.now()
+  const typeLabel = report.type === 'staff' ? 'Staff Issue' : 'Member Issue';
+  const categories = report.type === 'staff' ? STAFF_ISSUES : MEMBER_ISSUES;
+  const catInfo = categories.find(c => c.value === report.category);
+  const categoryLabel = catInfo ? catInfo.label : report.category;
+  
+  const fullReason = '**[' + typeLabel + '] ' + categoryLabel + '**\n' + reason;
+  
+  db.prepare('INSERT INTO reports (id, guild_id, reporter_id, target_id, reason, evidence, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
+    reportId, report.guildId, interaction.user.id, report.targetId, fullReason, evidence, 'pending', Date.now()
   );
   
   delete pendingReport[interaction.user.id];
   
+  // Log to reports channel
   await log(interaction.guild, 'reports', 'Report Submitted', {
     actor: interaction.user.id,
     target: report.targetId,
-    reason,
-    footer: `Report ID: ${reportId}`,
+    reason: typeLabel + ' \u2014 ' + categoryLabel,
+    footer: 'Report ID: ' + reportId,
   });
   
+  // Confirmation embed (ephemeral)
   const embed = new EmbedBuilder()
-    .setTitle('Report Submitted')
+    .setTitle('Report Submitted Successfully')
     .setColor(config.colors.success)
     .setDescription(
       '\u2501'.repeat(32) + '\n' +
       '**Report ID** ' + reportId + '\n' +
-      '**Target** <@' + report.targetId + '>\n' +
-      '**Reason** ' + reason + '\n' +
+      '**Against** <@' + report.targetId + '>\n' +
+      '**Type** ' + typeLabel + '\n' +
+      '**Issue** ' + categoryLabel + '\n' +
       (evidence ? '**Evidence** ' + evidence + '\n' : '') +
       '\u2501'.repeat(32) + '\n\n' +
-      'Your report has been logged. A higher official will review it.\n' +
-      'If action is needed, a ticket will be opened for discussion.'
+      'Your report has been received and logged.\n' +
+      'A **higher official** will review it and take appropriate action.\n\n' +
+      '*Please wait for action to be taken. Do not spam reports.*'
     )
     .setFooter({ text: 'NEXAVERSE Report System' })
     .setTimestamp();
   
   await interaction.editReply({ embeds: [embed] });
+  
+  // DM confirmation to reporter
+  try {
+    const { sendDM } = require('../utils/dm');
+    const dmEmbed = new EmbedBuilder()
+      .setTitle('Report Received')
+      .setColor(config.colors.success)
+      .setDescription(
+        '\u2501'.repeat(32) + '\n' +
+        'Your report has been submitted in **' + interaction.guild.name + '**.\n\n' +
+        '**Report ID** ' + reportId + '\n' +
+        '**Against** <@' + report.targetId + '>\n' +
+        '**Type** ' + typeLabel + '\n' +
+        '**Issue** ' + categoryLabel + '\n\n' +
+        'A staff member will review your report and take action.\n' +
+        'Please wait for action to be taken \u2014 you will be notified if further steps are needed.\n' +
+        '\u2501'.repeat(32) + '\n\n' +
+        '*Do not submit duplicate reports.*'
+      )
+      .setFooter({ text: 'NEXAVERSE Moderation' })
+      .setTimestamp();
+    await sendDM(interaction.user, dmEmbed);
+  } catch (e) {}
   
   // DM the target that they were reported
   try {
@@ -2341,10 +2482,11 @@ async function handleReportReasonModal(interaction) {
       .setColor(config.colors.warning)
       .setDescription(
         '\u2501'.repeat(32) + '\n' +
-        'A report has been filed against you in **' + interaction.guild.name + '**.\n' +
-        '**Reason** ' + reason + '\n' +
-        '\u2501'.repeat(32) + '\n' +
-        'Staff will review this report. If you have questions, contact a staff member.'
+        'A report has been filed against you in **' + interaction.guild.name + '**.\n\n' +
+        '**Type** ' + typeLabel + '\n' +
+        '**Issue** ' + categoryLabel + '\n\n' +
+        'Staff will review this report and take appropriate action.\n' +
+        '\u2501'.repeat(32)
       )
       .setFooter({ text: 'NEXAVERSE Moderation' })
       .setTimestamp();
@@ -2397,17 +2539,13 @@ async function handleReportTakeAction(interaction, id) {
     });
   }
   
-  // Store ticket in database
-  db.prepare(`INSERT INTO tickets (id, guild_id, channel_id, creator_id, category, subject, status, created_at)
-    VALUES (?, ?, ?, ?, 'report', ?, 'open', ?)`).run(
+  db.prepare('INSERT INTO tickets (id, guild_id, channel_id, creator_id, category, subject, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
     generateId('TKT'), interaction.guild.id, ticketChannel.id, interaction.user.id,
-    'Report: ' + reportId + ' against <@' + report.target_id + '>', Date.now()
+    'report', 'Report: ' + reportId + ' against <@' + report.target_id + '>', 'open', Date.now()
   );
   
-  // Update report status
   db.prepare('UPDATE reports SET status = ?, claimed_by = ? WHERE id = ?').run('in_progress', interaction.user.id, reportId);
   
-  // Send ticket embed with report details
   const ticketEmbed = new EmbedBuilder()
     .setTitle('NEXAVERSE Report Ticket')
     .setColor(config.colors.warning)
@@ -2416,11 +2554,11 @@ async function handleReportTakeAction(interaction, id) {
       '**Report ID** ' + reportId + '\n' +
       '**Reported By** <@' + report.reporter_id + '>\n' +
       '**Against** <@' + report.target_id + '>\n' +
-      '**Reason** ' + report.reason + '\n' +
+      '**Reason**\n' + report.reason + '\n' +
       (report.evidence ? '**Evidence** ' + report.evidence + '\n' : '') +
       '**Claimed By** <@' + interaction.user.id + '>\n' +
       '\u2501'.repeat(32) + '\n\n' +
-      'Use `-close` to close this ticket when resolved.'
+      'Discuss the issue here. Use `-close` to close this ticket when resolved.'
     )
     .setFooter({ text: 'Report ' + reportId + ' \u00b7 NEXAVERSE' })
     .setTimestamp();
@@ -2476,7 +2614,6 @@ async function handleTicketClose(interaction, id) {
   
   db.prepare('UPDATE tickets SET status = ?, closed_at = ? WHERE id = ?').run('closed', Date.now(), ticketId);
   
-  // Also update report if this was a report ticket
   if (ticket.category === 'report') {
     const reportMatch = (ticket.subject || '').match(/Report: (RPT-[A-Z0-9]+)/);
     if (reportMatch) {
@@ -2498,7 +2635,6 @@ async function handleTicketClose(interaction, id) {
     ],
   });
   
-  // Delete the channel after 10 seconds
   const channel = interaction.channel;
   setTimeout(() => {
     if (channel) channel.delete().catch(() => {});
