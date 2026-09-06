@@ -123,6 +123,9 @@ module.exports = {
           // Report take-action button
           if (id.startsWith('report_take_action_')) { await handleReportTakeAction(interaction, id); return; }
           if (id.startsWith('ticket_close_')) { await handleTicketClose(interaction, id); return; }
+
+          // Giveaway enter button
+          if (id.startsWith('gw_enter_')) { await handleGiveawayEnter(interaction, id); return; }
           if (id.startsWith('ticket_action_warn_')) { await handleTicketAction(interaction, id, 'warn'); return; }
           if (id.startsWith('ticket_action_kick_')) { await handleTicketAction(interaction, id, 'kick'); return; }
           if (id.startsWith('ticket_action_ban_')) { await handleTicketAction(interaction, id, 'ban'); return; }
@@ -172,6 +175,7 @@ module.exports = {
           if (id.startsWith('mod_action_select_')) { await handleModActionSelect(interaction, id); return; }
           if (id.startsWith('wallet_transfer_select_')) { await handleWalletTransferSelect(interaction, id); return; }
           if (id === 'report_user_select') { await handleReportUserSelect(interaction); return; }
+          if (id === 'leaderboard_select') { const { showLeaderboard } = require('../commands/leaderboard'); await showLeaderboard(interaction, interaction.values[0], true); return; }
           if (id === 'report_type_select') { await handleReportTypeSelect(interaction); return; }
           if (id === 'report_category_select') { await handleReportCategorySelect(interaction); return; }
 
@@ -2838,4 +2842,51 @@ async function handleTicketDismiss(interaction, id) {
       .setTimestamp()
     ],
   });
+}
+
+// ===== GIVEAWAY HANDLER =====
+
+async function handleGiveawayEnter(interaction, id) {
+  const giveawayId = id.replace('gw_enter_', '');
+  const { enterGiveaway, getGiveaway } = require('../systems/giveaways');
+  const { log } = require('../systems/logging');
+  
+  const giveaway = getGiveaway(giveawayId);
+  if (!giveaway) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Giveaway Ended').setDescription('This giveaway is no longer active.').setColor(config.colors.warning)],
+      flags: 64,
+    });
+  }
+  
+  if (giveaway.status !== 'active') {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Giveaway Ended').setDescription('This giveaway has already ended.').setColor(config.colors.warning)],
+      flags: 64,
+    });
+  }
+  
+  const result = enterGiveaway(giveawayId, interaction.user.id, interaction.guild.id);
+  
+  if (result.success) {
+    await interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setTitle('You Entered!')
+        .setColor(config.colors.success)
+        .setDescription(`You entered the giveaway for **${giveaway.prize}**!\nGood luck! \uD83C\uDF89`)
+        .setTimestamp()
+      ],
+      flags: 64,
+    });
+  } else {
+    await interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setTitle('Already Entered')
+        .setColor(config.colors.warning)
+        .setDescription(result.error || 'You are already in this giveaway.')
+        .setTimestamp()
+      ],
+      flags: 64,
+    });
+  }
 }

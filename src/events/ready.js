@@ -57,6 +57,61 @@ module.exports = {
         }
       }
     }
+
+    // ===== REMINDER CHECKER =====
+    setInterval(async () => {
+      try {
+        const { getDb } = require('../database/init');
+        const db = getDb();
+        const now = Date.now();
+        const due = db.prepare('SELECT * FROM reminders WHERE remind_at <= ? AND remind_at > 0').all(now);
+        for (const r of due) {
+          try {
+            const user = await client.users.fetch(r.user_id);
+            if (user) {
+              await user.send({
+                embeds: [new (require('discord.js').EmbedBuilder)()
+                  .setTitle('Reminder')
+                  .setColor(config.colors.primary)
+                  .setDescription(`You asked me to remind you:\n\n> ${r.message}`)
+                  .setFooter({ text: 'NEXAVERSE Reminders' })
+                  .setTimestamp()],
+              }).catch(() => {});
+            }
+          } catch (e) {}
+          db.prepare('DELETE FROM reminders WHERE id = ?').run(r.id);
+        }
+      } catch (e) {
+        console.error('[REMINDER] Checker error:', e.message);
+      }
+    }, 60000); // Check every minute
+
+    // ===== BIRTHDAY CHECKER =====
+    setInterval(async () => {
+      try {
+        const now = new Date();
+        const todayMonth = now.getMonth() + 1;
+        const todayDay = now.getDate();
+        const todayStr = `${todayMonth}-${todayDay}`;
+        const { getDb } = require('../database/init');
+        const db = getDb();
+        const bdays = db.prepare("SELECT key, value FROM guild_config WHERE key LIKE 'birthday_%' AND value = ?").all(todayStr);
+        for (const row of bdays) {
+          const userId = row.key.replace('birthday_', '');
+          for (const [, guild] of client.guilds.cache) {
+            try {
+              const member = await guild.members.fetch(userId).catch(() => null);
+              if (member && config.birthdayRoleId) {
+                const role = guild.roles.cache.get(config.birthdayRoleId);
+                if (role) await member.roles.add(role, 'Birthday role').catch(() => {});
+              }
+            } catch (e) {}
+          }
+        }
+      } catch (e) {
+        console.error('[BIRTHDAY] Checker error:', e.message);
+      }
+    }, 3600000); // Check every hour
   },
 };
 

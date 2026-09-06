@@ -170,6 +170,22 @@ const config = {
   ],
 
   notificationCategories: ['giveaways', 'events', 'economy', 'level_ups', 'invites', 'announcements', 'tickets'],
+
+  // Role rewards: auto-assign role on level up
+  // Set ROLE_REWARD_<LEVEL>=<role_id> in .env to enable
+  roleRewards: {
+    5: process.env.ROLE_REWARD_5 || '',
+    10: process.env.ROLE_REWARD_10 || '',
+    15: process.env.ROLE_REWARD_15 || '',
+    20: process.env.ROLE_REWARD_20 || '',
+    30: process.env.ROLE_REWARD_30 || '',
+    50: process.env.ROLE_REWARD_50 || '',
+    75: process.env.ROLE_REWARD_75 || '',
+    100: process.env.ROLE_REWARD_100 || '',
+  },
+
+  // Birthday role: auto-assign on birthday
+  birthdayRoleId: process.env.BIRTHDAY_ROLE_ID || '',
 };
 
 module.exports = config;

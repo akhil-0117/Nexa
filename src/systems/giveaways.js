@@ -67,7 +67,7 @@ function endGiveaway(id) {
 
   db.prepare('UPDATE giveaways SET winners = ?, status = ? WHERE id = ?').run(JSON.stringify(winners), 'ended', id);
 
-  return { winners, entryCount: entries.length };
+  return { success: true, winners, entryCount: entries.length, prize: giveaway.prize };
 }
 
 function rerollGiveaway(id) {
@@ -86,7 +86,7 @@ function rerollGiveaway(id) {
   const newWinners = available.sort(() => 0.5 - Math.random()).slice(0, giveaway.winner_count);
   db.prepare('UPDATE giveaways SET winners = ?, rerolls = rerolls + 1 WHERE id = ?').run(JSON.stringify(newWinners), id);
 
-  return { winners: newWinners };
+  return { success: true, winners: newWinners, prize: giveaway.prize };
 }
 
 function cancelGiveaway(id) {

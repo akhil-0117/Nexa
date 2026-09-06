@@ -9,7 +9,10 @@ const CATEGORIES = {
       '`/account` \u2014 Account dashboard and profile card\n' +
       '`/wallet` \u2014 Wallet, rewards and transfers\n' +
       '`/games` \u2014 Games arcade (7 games)\n' +
+      '`/leaderboard` \u2014 Top users by credits, XP, etc.\n' +
       '`/stats` \u2014 Server statistics\n' +
+      '`/remindme` \u2014 Set a reminder\n' +
+      '`/birthday` \u2014 Set your birthday\n' +
       '`/restore` \u2014 Owner only \u00b7 Re-invite members',
   },
   moderation: {
@@ -32,6 +35,7 @@ const CATEGORIES = {
   staff: {
     title: 'Staff',
     desc:
+      '`/giveaway` \u2014 Create, end, reroll giveaways\n' +
       '`/event` \u2014 Create events (Death Note and more)\n' +
       '`/staff` \u2014 Staff panel\n' +
       '`/config` \u2014 Server configuration (Admin)',

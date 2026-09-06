@@ -155,6 +155,23 @@ module.exports = {
         actor: userId,
         reason: `Now level ${xpResult.level}`,
       });
+
+      // Role rewards: auto-assign role on level up
+      const roleReward = config.roleRewards[xpResult.level];
+      if (roleReward && message.member) {
+        try {
+          const role = guild.roles.cache.get(roleReward);
+          if (role) {
+            await message.member.roles.add(role, 'Level-up role reward');
+            await log(guild, 'members', `🏆 Role Reward`, {
+              actor: userId,
+              reason: `Level ${xpResult.level} — granted ${role.name}`,
+            });
+          }
+        } catch (e) {
+          console.error('[XP] Role reward failed:', e.message);
+        }
+      }
     }
 
     // Check achievements
