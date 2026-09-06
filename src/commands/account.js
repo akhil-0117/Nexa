@@ -4,7 +4,7 @@ const { getXpInfo } = require('../systems/xp');
 const { getRepInfo } = require('../systems/reputation');
 const { getRankForXp, formatCredits } = require('../utils/helpers');
 const { getMemberRoleName, getStaffRole } = require('../utils/permissions');
-const { generateBrandBanner } = require('../utils/images');
+const { generateDarkBanner } = require('../utils/images');
 const config = require('../config');
 
 const PRESIDENT_GIFS = [
@@ -62,7 +62,7 @@ module.exports = {
       } else {
         // Everyone else gets the NEXAVERSE brand banner
         try {
-          const banner = await generateBrandBanner('NEXAVERSE', 'ACCOUNT SYSTEM');
+          const banner = await generateDarkBanner('NEXAVERSE', 'ACCOUNT SYSTEM');
           files.push(banner);
           embed.setImage('attachment://banner.png');
         } catch (e) {

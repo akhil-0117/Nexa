@@ -219,34 +219,40 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
 
   for (const badge of badges) {
     const bStyle = badge.style;
-    ctx.font = `800 ${10.5 * S}px Inter`;
+    ctx.font = `800 ${11 * S}px Inter`;
     const tw = ctx.measureText(badge.text).width;
-    const pillW = tw + 36 * S;
-    const pillH = 26 * S;
+    const pillW = tw + 38 * S;
+    const pillH = 28 * S;
     const pillR = pillH / 2;
 
+    // Glass pill background
+    ctx.save();
+    ctx.globalAlpha = 0.85;
     const pillBg = ctx.createLinearGradient(tX, tY, tX + pillW, tY + pillH);
     pillBg.addColorStop(0, bStyle.bg1);
     pillBg.addColorStop(1, bStyle.bg2);
     ctx.fillStyle = pillBg;
     roundRect(ctx, tX, tY, pillW, pillH, pillR);
     ctx.fill();
+    ctx.restore();
     ctx.strokeStyle = bStyle.border;
     ctx.lineWidth = 1.5;
     roundRect(ctx, tX, tY, pillW, pillH, pillR);
     ctx.stroke();
 
+    // Dot indicator
     ctx.beginPath();
-    ctx.arc(tX + 14 * S, tY + pillH / 2, 3.5 * S, 0, Math.PI * 2);
+    ctx.arc(tX + 14 * S, tY + pillH / 2, 4 * S, 0, Math.PI * 2);
     ctx.fillStyle = bStyle.dot;
     ctx.fill();
 
+    // Label text (title case, NOT uppercase)
     ctx.fillStyle = bStyle.color;
-    ctx.font = `800 ${10.5 * S}px Inter`;
+    ctx.font = `700 ${11 * S}px Inter`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(badge.text.toUpperCase(), tX + 24 * S, tY + pillH / 2);
-    tY += pillH + 8 * S;
+    ctx.fillText(badge.text, tX + 24 * S, tY + pillH / 2 + 1);
+    tY += pillH + 10 * S;
   }
 
   // ===== STAT GRID =====
@@ -851,4 +857,148 @@ function progressBar(current, max, length = 20) {
   return '\u2588'.repeat(filled) + '\u2591'.repeat(empty);
 }
 
-module.exports = { generateProfileCard, generateWalletCard, generateBrandBanner, progressBar };
+// ===== DARK ANIME BANNER (Itachi/Sharingan style) =====
+async function generateDarkBanner(title = 'NEXAVERSE', subtitle = '') {
+  const W = 1600;
+  const H = 500;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+
+  // Dark background with subtle radial
+  ctx.fillStyle = '#08060c';
+  ctx.fillRect(0, 0, W, H);
+
+  // Deep red/purple ambient glow
+  const g1 = ctx.createRadialGradient(W * 0.15, H * 0.5, 0, W * 0.15, H * 0.5, W * 0.4);
+  g1.addColorStop(0, 'rgba(120,20,20,0.18)');
+  g1.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g1;
+  ctx.fillRect(0, 0, W, H);
+
+  const g2 = ctx.createRadialGradient(W * 0.85, H * 0.4, 0, W * 0.85, H * 0.4, W * 0.35);
+  g2.addColorStop(0, 'rgba(80,15,30,0.15)');
+  g2.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(0, 0, W, H);
+
+  // Center glow behind text
+  const gCenter = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.3);
+  gCenter.addColorStop(0, 'rgba(160,120,180,0.08)');
+  gCenter.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gCenter;
+  ctx.fillRect(0, 0, W, H);
+
+  // Sharingan-style red circles (decorative)
+  function drawSharingan(cx, cy, radius, opacity) {
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(200,30,30,0.7)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // Inner glow
+    const sg = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    sg.addColorStop(0, 'rgba(200,30,30,0.15)');
+    sg.addColorStop(0.7, 'rgba(200,30,30,0.05)');
+    sg.addColorStop(1, 'rgba(200,30,30,0)');
+    ctx.fillStyle = sg;
+    ctx.fill();
+    // Tomoe dots
+    for (let i = 0; i < 3; i++) {
+      const angle = (i * 120 - 90) * Math.PI / 180;
+      const tx = cx + Math.cos(angle) * radius * 0.55;
+      const ty = cy + Math.sin(angle) * radius * 0.55;
+      ctx.beginPath();
+      ctx.arc(tx, ty, radius * 0.12, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(200,20,20,0.8)';
+      ctx.fill();
+    }
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.1, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(200,20,20,0.9)';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Scattered sharingan symbols
+  drawSharingan(W * 0.12, H * 0.3, 22, 0.3);
+  drawSharingan(W * 0.22, H * 0.7, 16, 0.2);
+  drawSharingan(W * 0.78, H * 0.25, 20, 0.25);
+  drawSharingan(W * 0.88, H * 0.65, 18, 0.2);
+  drawSharingan(W * 0.5, H * 0.15, 12, 0.15);
+  drawSharingan(W * 0.6, H * 0.85, 14, 0.15);
+
+  // Smoky/misty horizontal streaks
+  ctx.save();
+  ctx.globalAlpha = 0.04;
+  for (let i = 0; i < 6; i++) {
+    const sy = H * 0.2 + i * H * 0.12;
+    const sg = ctx.createLinearGradient(0, sy, W, sy);
+    sg.addColorStop(0, 'rgba(200,180,220,0)');
+    sg.addColorStop(0.3, 'rgba(200,180,220,1)');
+    sg.addColorStop(0.7, 'rgba(200,180,220,1)');
+    sg.addColorStop(1, 'rgba(200,180,220,0)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(0, sy, W, 3);
+  }
+  ctx.restore();
+
+  // Subtle dot texture
+  ctx.save();
+  ctx.globalAlpha = 0.025;
+  for (let y = 0; y < H; y += 3) {
+    for (let x = 0; x < W; x += 3) {
+      if ((x + y) % 6 === 0) ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  ctx.restore();
+
+  // ===== MAIN TEXT =====
+  const fontSize = Math.floor(H * 0.38);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Text glow (red-tinted shadow)
+  ctx.save();
+  ctx.shadowColor = 'rgba(180,40,40,0.4)';
+  ctx.shadowBlur = 60;
+  ctx.fillStyle = '#e8e0f0';
+  ctx.font = `900 ${fontSize}px CabinetGrotesk`;
+  ctx.fillText(title, W / 2, H / 2 - (subtitle ? 15 : 0));
+  ctx.restore();
+
+  // Text again without shadow for crispness
+  ctx.fillStyle = '#ddd8e8';
+  ctx.font = `900 ${fontSize}px CabinetGrotesk`;
+  ctx.fillText(title, W / 2, H / 2 - (subtitle ? 15 : 0));
+
+  // Subtitle
+  if (subtitle) {
+    ctx.fillStyle = 'rgba(180,160,200,0.5)';
+    ctx.font = '600 20px Inter';
+    const spaced = subtitle.split('').join(' ');
+    ctx.fillText(spaced, W / 2, H / 2 + fontSize * 0.45);
+  }
+
+  // Thin accent lines
+  const lineGrad = ctx.createLinearGradient(W * 0.25, 0, W * 0.75, 0);
+  lineGrad.addColorStop(0, 'rgba(200,30,30,0)');
+  lineGrad.addColorStop(0.5, 'rgba(200,30,30,0.5)');
+  lineGrad.addColorStop(1, 'rgba(200,30,30,0)');
+  ctx.fillStyle = lineGrad;
+  ctx.fillRect(W * 0.25, H * 0.18, W * 0.5, 1.5);
+
+  const lineGrad2 = ctx.createLinearGradient(W * 0.25, 0, W * 0.75, 0);
+  lineGrad2.addColorStop(0, 'rgba(160,120,200,0)');
+  lineGrad2.addColorStop(0.5, 'rgba(160,120,200,0.3)');
+  lineGrad2.addColorStop(1, 'rgba(160,120,200,0)');
+  ctx.fillStyle = lineGrad2;
+  ctx.fillRect(W * 0.25, H * 0.82, W * 0.5, 1);
+
+  return new AttachmentBuilder(canvas.toBuffer('image/png'), { name: 'banner.png' });
+}
+
+module.exports = { generateProfileCard, generateWalletCard, generateBrandBanner, generateDarkBanner, progressBar };

@@ -2,12 +2,13 @@ const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBui
 const { isAdmin, getStaffLevel } = require('../utils/permissions');
 const { getConfig, setConfig } = require('../systems/config');
 const config = require('../config');
+const { generateDarkBanner } = require('../utils/images');
 
-// Editable settings per category: key -> { label, default, kind }
-// kind: 'number' | 'text' | 'onoff'
+// Editable settings per category
 const CATEGORY_SETTINGS = {
   economy: {
     title: 'Economy',
+    emoji: '\uD83D\uDCB0',
     settings: {
       daily_reward: { label: 'Daily Reward', default: String(config.economy.dailyReward), kind: 'number' },
       weekly_reward: { label: 'Weekly Reward', default: String(config.economy.weeklyReward), kind: 'number' },
@@ -18,6 +19,7 @@ const CATEGORY_SETTINGS = {
   },
   xp: {
     title: 'XP & Levels',
+    emoji: '\u2B50',
     settings: {
       message_xp_min: { label: 'XP Per Message (min)', default: String(config.xp.messageXpMin), kind: 'number' },
       message_xp_max: { label: 'XP Per Message (max)', default: String(config.xp.messageXpMax), kind: 'number' },
@@ -28,6 +30,7 @@ const CATEGORY_SETTINGS = {
   },
   reputation: {
     title: 'Reputation',
+    emoji: '\u2B50',
     settings: {
       initial_score: { label: 'Initial Score', default: String(config.reputation.initialScore), kind: 'number' },
       warn_decrease: { label: 'Warn Decrease', default: String(config.reputation.warnDecrease), kind: 'number' },
@@ -37,6 +40,7 @@ const CATEGORY_SETTINGS = {
   },
   moderation: {
     title: 'Moderation',
+    emoji: '\uD83D\uDD28',
     settings: {
       mod_log_enabled: { label: 'Moderation Logging', default: '1', kind: 'onoff' },
       dm_on_action: { label: 'DM Users On Mod Action', default: '1', kind: 'onoff' },
@@ -45,6 +49,7 @@ const CATEGORY_SETTINGS = {
   },
   automod: {
     title: 'Automod',
+    emoji: '\uD83D\uDEE1\uFE0F',
     settings: {
       automod_enabled: { label: 'Automod Enabled', default: '1', kind: 'onoff' },
       badwords_enabled: { label: 'Bad Words Filter', default: '1', kind: 'onoff' },
@@ -54,6 +59,7 @@ const CATEGORY_SETTINGS = {
   },
   antispam: {
     title: 'Anti-Spam',
+    emoji: '\uD83D\uDEAB',
     settings: {
       antispam_enabled: { label: 'Anti-Spam Enabled', default: '1', kind: 'onoff' },
       spam_max_messages: { label: 'Max Messages (per window)', default: '7', kind: 'number' },
@@ -70,38 +76,41 @@ function getSettingValue(guildId, key, def) {
   return getConfig(guildId, `cfg_${key}`, def);
 }
 
-function buildHomeEmbed(guild) {
+function buildHomeEmbed(guild, banner) {
   const embed = new EmbedBuilder()
-    .setAuthor({ name: `${guild.name} \u2014 Configuration`, iconURL: guild.iconURL({ dynamic: true }) || undefined })
-    .setTitle('NEXAVERSE \u00b7 Server Settings')
     .setColor(config.colors.staff)
     .setDescription(
       `Select a category from the dropdown to view and edit its settings.\n\n` +
       `**Categories**\n` +
-      `Economy \u2014 rewards, fees, starting balance\n` +
-      `XP & Levels \u2014 XP rates and cooldowns\n` +
-      `Reputation \u2014 penalties and recovery\n` +
-      `Moderation \u2014 logging and DM behavior\n` +
-      `Automod \u2014 filters and actions\n` +
-      `Anti-Spam \u2014 thresholds\n` +
-      `Credits Manager \u2014 add / set / remove user credits\n` +
-      `${divider()}`
+      `\uD83D\uDCB0 Economy \u2014 rewards, fees, starting balance\n` +
+      `\u2B50 XP & Levels \u2014 XP rates and cooldowns\n` +
+      `\uD83C\uDFAF Reputation \u2014 penalties and recovery\n` +
+      `\uD83D\uDD28 Moderation \u2014 logging and DM behavior\n` +
+      `\uD83D\uDEE1\uFE0F Automod \u2014 filters and actions\n` +
+      `\uD83D\uDEAB Anti-Spam \u2014 thresholds\n` +
+      `\uD83D\uDCB3 Credits Manager \u2014 add / set / remove user credits\n\n` +
+      `${divider()}\n` +
+      `Changes apply instantly and are logged to the staff channel.`
     )
-    .setFooter({ text: 'Changes apply instantly and are logged' })
+    .setFooter({ text: 'NEXAVERSE Configuration' })
     .setTimestamp();
+
+  if (banner) {
+    embed.setImage('attachment://banner.png');
+  }
 
   const select = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId('config_select')
       .setPlaceholder('Select a category...')
       .addOptions([
-        { label: 'Economy', value: 'economy', description: 'Rewards, fees, limits' },
-        { label: 'XP & Levels', value: 'xp', description: 'XP rates and cooldowns' },
-        { label: 'Reputation', value: 'reputation', description: 'Penalties and recovery' },
-        { label: 'Moderation', value: 'moderation', description: 'Logging and DM behavior' },
-        { label: 'Automod', value: 'automod', description: 'Filters and actions' },
-        { label: 'Anti-Spam', value: 'antispam', description: 'Spam thresholds' },
-        { label: 'Credits Manager', value: 'credits', description: 'Add / set / remove credits' },
+        { label: '\uD83D\uDCB0 Economy', value: 'economy', description: 'Rewards, fees, limits' },
+        { label: '\u2B50 XP & Levels', value: 'xp', description: 'XP rates and cooldowns' },
+        { label: '\uD83C\uDFAF Reputation', value: 'reputation', description: 'Penalties and recovery' },
+        { label: '\uD83D\uDD28 Moderation', value: 'moderation', description: 'Logging and DM behavior' },
+        { label: '\uD83D\uDEE1\uFE0F Automod', value: 'automod', description: 'Filters and actions' },
+        { label: '\uD83D\uDEAB Anti-Spam', value: 'antispam', description: 'Spam thresholds' },
+        { label: '\uD83D\uDCB3 Credits Manager', value: 'credits', description: 'Add / set / remove credits' },
       ])
   );
 
@@ -124,8 +133,9 @@ module.exports = {
 
     await interaction.deferReply();
 
-    const { embed, select } = buildHomeEmbed(interaction.guild);
-    await interaction.editReply({ embeds: [embed], components: [select] });
+    const banner = await generateDarkBanner('NEXAVERSE', 'CONFIGURATION');
+    const { embed, select } = buildHomeEmbed(interaction.guild, banner);
+    await interaction.editReply({ embeds: [embed], files: [banner], components: [select] });
   },
 };
 

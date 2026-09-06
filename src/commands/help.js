@@ -1,6 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../config');
-const { generateBrandBanner } = require('../utils/images');
+const { generateDarkBanner } = require('../utils/images');
 
 const CATEGORIES = {
   general: {
@@ -70,7 +70,7 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply();
 
-    const banner = await generateBrandBanner('NEXAVERSE', 'HELP CENTER');
+    const banner = await generateDarkBanner('NEXAVERSE', 'HELP CENTER');
 
     const select = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
