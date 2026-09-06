@@ -120,6 +120,10 @@ module.exports = {
             return;
           }
 
+          // Report take-action button
+          if (id.startsWith('report_take_action_')) { await handleReportTakeAction(interaction, id); return; }
+          if (id.startsWith('ticket_close_')) { await handleTicketClose(interaction, id); return; }
+
           // Registered component handlers
           const handler = client.buttons.get(id) || findDynamicHandler(client.buttons, id);
           if (handler) {
@@ -162,6 +166,7 @@ module.exports = {
           if (id === 'mod_user_select') { await handleModUserSelect(interaction); return; }
           if (id.startsWith('mod_action_select_')) { await handleModActionSelect(interaction, id); return; }
           if (id.startsWith('wallet_transfer_select_')) { await handleWalletTransferSelect(interaction, id); return; }
+          if (id === 'report_user_select') { await handleReportUserSelect(interaction); return; }
 
           await safeReply(interaction, {
             embeds: [new EmbedBuilder().setTitle('Expired').setDescription('This menu is no longer active. Use the command again.').setColor(config.colors.warning)],
@@ -181,9 +186,14 @@ module.exports = {
       if (interaction.isModalSubmit()) {
         const id = interaction.customId;
 
-        try {
-          // Transfer modal: transfer_modal_<userId>_<recipientId>
-          if (id.startsWith('transfer_modal_')) {
+        try {        // Report reason modal
+          if (id === 'report_reason_modal') {
+            await handleReportReasonModal(interaction);
+            return;
+          }
+
+        // Transfer modal: transfer_modal_<userId>_<recipientId>
+            if (id.startsWith('transfer_modal_')) {
             const parts = id.split('_');
             const modalOwnerId = parts[2];
             const recipientId = parts[3];
@@ -1009,6 +1019,16 @@ async function handleModActionSelect(interaction, id) {
   if (!check.allowed) {
     return safeReply(interaction, {
       embeds: [new EmbedBuilder().setTitle('Not Permitted').setDescription(check.error)],
+      flags: 64,
+    });
+  }
+
+  // Enforce role-based permission system
+  const { canPerformAction: canDo } = require('../utils/permissions');
+  const permMap = { warn: 'warn', kick: 'kick', ban: 'ban', timeout: 'timeout', untimeout: 'untimeout', reputation: 'reputation', mute: 'mute', unmute: 'unmute' };
+  if (permMap[action] && !canDo(interaction.member, permMap[action])) {
+    return safeReply(interaction, {
+      embeds: [new EmbedBuilder().setTitle('Not Permitted').setDescription('Your staff level does not permit this action.')],
       flags: 64,
     });
   }
@@ -2215,4 +2235,272 @@ async function handleDeathNoteAccuse(interaction, id) {
 
     await log(interaction.guild, 'events', 'Death Note Game Ended', { actor: interaction.user.id, reason: `Winner: ${result.winner}, Prize: ${prize}` });
   }
+}
+
+// ===== REPORT SYSTEM =====
+
+let pendingReport = {};
+
+async function handleReportUserSelect(interaction) {
+  const targetId = interaction.values[0];
+  
+  if (targetId === interaction.user.id) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Invalid Report').setDescription('You cannot report yourself.').setColor(config.colors.warning)],
+      flags: 64,
+    });
+  }
+  
+  pendingReport[interaction.user.id] = { targetId, guildId: interaction.guild.id };
+  
+  const modal = new ModalBuilder()
+    .setCustomId('report_reason_modal')
+    .setTitle('Report Reason')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('reason')
+          .setLabel('What happened?')
+          .setPlaceholder('Describe the issue in detail...')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setMaxLength(1000)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('evidence')
+          .setLabel('Evidence (optional)')
+          .setPlaceholder('Message links, screenshots, etc.')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(false)
+          .setMaxLength(500)
+      )
+    );
+  
+  await interaction.showModal(modal);
+}
+
+async function handleReportReasonModal(interaction) {
+  const report = pendingReport[interaction.user.id];
+  if (!report) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Error').setDescription('Report session expired. Try again.').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+  
+  const reason = interaction.fields.getTextInputValue('reason');
+  const evidence = interaction.fields.getTextInputValue('evidence') || '';
+  
+  await interaction.deferReply({ flags: 64 });
+  
+  const { getDb } = require('../database/init');
+  const { generateId } = require('../utils/helpers');
+  const { log } = require('../systems/logging');
+  
+  const reportId = generateId('RPT');
+  const db = getDb();
+  
+  db.prepare(`INSERT INTO reports (id, guild_id, reporter_id, target_id, reason, evidence, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`).run(
+    reportId, report.guildId, interaction.user.id, report.targetId, reason, evidence, Date.now()
+  );
+  
+  delete pendingReport[interaction.user.id];
+  
+  await log(interaction.guild, 'reports', 'Report Submitted', {
+    actor: interaction.user.id,
+    target: report.targetId,
+    reason,
+    footer: `Report ID: ${reportId}`,
+  });
+  
+  const embed = new EmbedBuilder()
+    .setTitle('Report Submitted')
+    .setColor(config.colors.success)
+    .setDescription(
+      '\u2501'.repeat(32) + '\n' +
+      '**Report ID** ' + reportId + '\n' +
+      '**Target** <@' + report.targetId + '>\n' +
+      '**Reason** ' + reason + '\n' +
+      (evidence ? '**Evidence** ' + evidence + '\n' : '') +
+      '\u2501'.repeat(32) + '\n\n' +
+      'Your report has been logged. A higher official will review it.\n' +
+      'If action is needed, a ticket will be opened for discussion.'
+    )
+    .setFooter({ text: 'NEXAVERSE Report System' })
+    .setTimestamp();
+  
+  await interaction.editReply({ embeds: [embed] });
+  
+  // DM the target that they were reported
+  try {
+    const { sendDMById } = require('../utils/dm');
+    const targetEmbed = new EmbedBuilder()
+      .setTitle('Report Filed Against You')
+      .setColor(config.colors.warning)
+      .setDescription(
+        '\u2501'.repeat(32) + '\n' +
+        'A report has been filed against you in **' + interaction.guild.name + '**.\n' +
+        '**Reason** ' + reason + '\n' +
+        '\u2501'.repeat(32) + '\n' +
+        'Staff will review this report. If you have questions, contact a staff member.'
+      )
+      .setFooter({ text: 'NEXAVERSE Moderation' })
+      .setTimestamp();
+    await sendDMById(interaction.guild, report.targetId, targetEmbed);
+  } catch (e) {}
+}
+
+async function handleReportTakeAction(interaction, id) {
+  const { isHigherOfficial } = require('../utils/permissions');
+  if (!isHigherOfficial(interaction.member)) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Access Denied').setDescription('Head of Staff or higher required.').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+  
+  const reportId = id.replace('report_take_action_', '');
+  const { getDb } = require('../database/init');
+  const { log } = require('../systems/logging');
+  const { generateId } = require('../utils/helpers');
+  
+  const db = getDb();
+  const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(reportId);
+  
+  if (!report) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Report Not Found').setDescription('This report no longer exists.').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+  
+  await interaction.deferReply();
+  
+  // Create ticket channel
+  const ticketChannelName = 'report-' + reportId.toLowerCase();
+  let ticketChannel;
+  try {
+    ticketChannel = await interaction.guild.channels.create({
+      name: ticketChannelName,
+      type: 0,
+      permissionOverwrites: [
+        { id: interaction.guild.id, deny: ['ViewChannel'] },
+        { id: interaction.user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
+        { id: report.reporter_id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
+      ],
+    });
+  } catch (e) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle('Error').setDescription('Failed to create ticket channel. Check bot permissions.').setColor(config.colors.error)],
+    });
+  }
+  
+  // Store ticket in database
+  db.prepare(`INSERT INTO tickets (id, guild_id, channel_id, creator_id, category, subject, status, created_at)
+    VALUES (?, ?, ?, ?, 'report', ?, 'open', ?)`).run(
+    generateId('TKT'), interaction.guild.id, ticketChannel.id, interaction.user.id,
+    'Report: ' + reportId + ' against <@' + report.target_id + '>', Date.now()
+  );
+  
+  // Update report status
+  db.prepare('UPDATE reports SET status = ?, claimed_by = ? WHERE id = ?').run('in_progress', interaction.user.id, reportId);
+  
+  // Send ticket embed with report details
+  const ticketEmbed = new EmbedBuilder()
+    .setTitle('NEXAVERSE Report Ticket')
+    .setColor(config.colors.warning)
+    .setDescription(
+      '\u2501'.repeat(32) + '\n' +
+      '**Report ID** ' + reportId + '\n' +
+      '**Reported By** <@' + report.reporter_id + '>\n' +
+      '**Against** <@' + report.target_id + '>\n' +
+      '**Reason** ' + report.reason + '\n' +
+      (report.evidence ? '**Evidence** ' + report.evidence + '\n' : '') +
+      '**Claimed By** <@' + interaction.user.id + '>\n' +
+      '\u2501'.repeat(32) + '\n\n' +
+      'Use `-close` to close this ticket when resolved.'
+    )
+    .setFooter({ text: 'Report ' + reportId + ' \u00b7 NEXAVERSE' })
+    .setTimestamp();
+  
+  await ticketChannel.send({
+    content: '<@' + interaction.user.id + '> <@' + report.reporter_id + '>',
+    embeds: [ticketEmbed],
+  });
+  
+  await log(interaction.guild, 'tickets', 'Ticket Created', {
+    actor: interaction.user.id,
+    reason: 'Report ' + reportId,
+    footer: 'Channel: ' + ticketChannel.name,
+  });
+  
+  await interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setTitle('Ticket Opened')
+      .setColor(config.colors.success)
+      .setDescription(
+        '\u2501'.repeat(32) + '\n' +
+        'A ticket has been created: <#' + ticketChannel.id + '>\n' +
+        '**Report ID** ' + reportId + '\n' +
+        '**Target** <@' + report.target_id + '>\n' +
+        '\u2501'.repeat(32)
+      )
+    ],
+  });
+}
+
+async function handleTicketClose(interaction, id) {
+  const { isHigherOfficial } = require('../utils/permissions');
+  if (!isHigherOfficial(interaction.member)) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Access Denied').setDescription('Head of Staff or higher required.').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+  
+  const ticketId = id.replace('ticket_close_', '');
+  const { getDb } = require('../database/init');
+  const { log } = require('../systems/logging');
+  
+  const db = getDb();
+  const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(ticketId);
+  
+  if (!ticket) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Ticket Not Found').setDescription('This ticket no longer exists.').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+  
+  db.prepare('UPDATE tickets SET status = ?, closed_at = ? WHERE id = ?').run('closed', Date.now(), ticketId);
+  
+  // Also update report if this was a report ticket
+  if (ticket.category === 'report') {
+    const reportMatch = (ticket.subject || '').match(/Report: (RPT-[A-Z0-9]+)/);
+    if (reportMatch) {
+      db.prepare('UPDATE reports SET status = ? WHERE id = ?').run('resolved', reportMatch[1]);
+    }
+  }
+  
+  await log(interaction.guild, 'tickets', 'Ticket Closed', {
+    actor: interaction.user.id,
+    reason: 'Ticket ' + ticketId,
+  });
+  
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setTitle('Ticket Closed')
+      .setColor(config.colors.info)
+      .setDescription('This ticket has been closed by <@' + interaction.user.id + '>.')
+      .setTimestamp()
+    ],
+  });
+  
+  // Delete the channel after 10 seconds
+  const channel = interaction.channel;
+  setTimeout(() => {
+    if (channel) channel.delete().catch(() => {});
+  }, 10000);
 }

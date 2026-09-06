@@ -22,6 +22,7 @@ const CATEGORIES = {
     title: 'Utility',
     desc:
       '`/verify` \u2014 Verify your account\n' +
+      '`/report` \u2014 Report a user for abuse\n' +
       '`/userinfo` \u2014 User information\n' +
       '`/serverinfo` \u2014 Server information\n' +
       '`/botinfo` \u2014 Bot information\n' +

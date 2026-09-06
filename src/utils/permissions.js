@@ -76,4 +76,51 @@ function getMemberRoleName(member) {
   return 'Member';
 }
 
-module.exports = { getStaffLevel, getStaffRole, isStaff, hasPermission, canModerate, getPermLabel, isAdmin, getMemberRoleName };
+// Staff permission levels — what each staff level can do
+const STAFF_ACTIONS = {
+  warn:        1, // Trial Moderator+
+  view_cases:  1, // Trial Moderator+
+  kick:        2, // Moderator+
+  timeout:     2, // Moderator+
+  untimeout:   2, // Moderator+
+  ban:         3, // Senior Moderator+
+  unban:       3, // Senior Moderator+
+  mute:        2, // Moderator+
+  unmute:      2, // Moderator+
+  purge:       3, // Senior Moderator+
+  slowmode:    3, // Senior Moderator+
+  reputation:  3, // Senior Moderator+
+  handle_reports: 4, // Head of Staff+
+  manage_tickets: 4, // Head of Staff+
+  close_tickets:  4, // Head of Staff+
+  credits_manager: 4, // Head of Staff+
+  config:      5, // President/Co-President
+  manage_staff: 5, // President/Co-President
+};
+
+/** Check if a member can perform a specific action */
+function canPerformAction(member, action) {
+  const level = getStaffLevel(member);
+  const required = STAFF_ACTIONS[action];
+  if (!required) return true; // Unrestricted action
+  return level >= required;
+}
+
+/** Get a summary of what a staff member can and cannot do */
+function getStaffPermissions(member) {
+  const level = getStaffLevel(member);
+  const allowed = [];
+  const denied = [];
+  for (const [action, reqLevel] of Object.entries(STAFF_ACTIONS)) {
+    if (level >= reqLevel) allowed.push(action);
+    else denied.push({ action, required: getPermLabel(reqLevel) });
+  }
+  return { level, label: getPermLabel(level), allowed, denied };
+}
+
+/** Check if member can handle/manage reports (Head of Staff+) */
+function isHigherOfficial(member) {
+  return getStaffLevel(member) >= 4;
+}
+
+module.exports = { getStaffLevel, getStaffRole, isStaff, hasPermission, canModerate, getPermLabel, isAdmin, getMemberRoleName, canPerformAction, getStaffPermissions, isHigherOfficial, STAFF_ACTIONS };

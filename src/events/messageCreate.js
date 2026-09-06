@@ -19,6 +19,34 @@ module.exports = {
     const userId = author.id;
     const db = getDb();
 
+    // Prefix commands
+    if (content === '-close' || content.toLowerCase().startsWith('-close ')) {
+      const { isHigherOfficial } = require('../utils/permissions');
+      if (!isHigherOfficial(message.member)) {
+        return message.reply('Only Head of Staff or higher can close tickets.').catch(() => {});
+      }
+      const { getDb } = require('../database/init');
+      const { log } = require('../systems/logging');
+      const ticketDb = getDb();
+      const ticket = ticketDb.prepare("SELECT * FROM tickets WHERE channel_id = ? AND status = 'open'").get(message.channel.id);
+      if (!ticket) {
+        return message.reply('No open ticket found in this channel.').catch(() => {});
+      }
+      ticketDb.prepare('UPDATE tickets SET status = ?, closed_at = ? WHERE id = ?').run('closed', Date.now(), ticket.id);
+      if (ticket.category === 'report') {
+        const reportMatch = (ticket.subject || '').match(/Report: (RPT-[A-Z0-9]+)/);
+        if (reportMatch) ticketDb.prepare('UPDATE reports SET status = ? WHERE id = ?').run('resolved', reportMatch[1]);
+      }
+      await log(guild, 'tickets', 'Ticket Closed', { actor: userId, reason: 'Ticket ' + ticket.id });
+      await message.reply({
+        embeds: [new EmbedBuilder().setTitle('Ticket Closed').setColor(config.colors.info)
+          .setDescription('This ticket has been closed by <@' + userId + '>.')
+          .setTimestamp()],
+      }).catch(() => {});
+      setTimeout(() => { message.channel.delete().catch(() => {}); }, 10000);
+      return;
+    }
+
     // Verification channel: delete all non-bot messages and re-post panel if needed
     if (config.verificationChannelId && message.channel.id === config.verificationChannelId) {
       try {
