@@ -5,10 +5,10 @@ const http = require('http');
 const path = require('path');
 
 // Register fonts
-const interPath = path.join(__dirname, '..', '..', 'fonts', 'Inter.ttf');
-const soraPath = path.join(__dirname, '..', '..', 'fonts', 'Sora.ttf');
-try { GlobalFonts.registerFromPath(interPath, 'Inter'); } catch (e) {}
-try { GlobalFonts.registerFromPath(soraPath, 'Sora'); } catch (e) {}
+try { GlobalFonts.registerFromPath(path.join(__dirname, '..', '..', 'fonts', 'Inter.ttf'), 'Inter'); } catch (e) {}
+try { GlobalFonts.registerFromPath(path.join(__dirname, '..', '..', 'fonts', 'Sora.ttf'), 'Sora'); } catch (e) {}
+try { GlobalFonts.registerFromPath(path.join(__dirname, '..', '..', 'fonts', 'CabinetGrotesk-Black.ttf'), 'CabinetGrotesk'); } catch (e) {}
+try { GlobalFonts.registerFromPath(path.join(__dirname, '..', '..', 'fonts', 'CabinetGrotesk-Extrabold.ttf'), 'CabinetGrotesk-Extrabold'); } catch (e) {}
 
 function downloadImage(url) {
   return new Promise((resolve, reject) => {
@@ -39,193 +39,129 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+// Role-specific badge colors matching the HTML template
+const BADGE_STYLES = {
+  'President':        { color: '#fff4ca', bg1: 'rgba(255,215,0,0.35)',   bg2: 'rgba(184,134,11,0.2)',  border: 'rgba(255,223,0,0.7)',   dot: '#ffd700' },
+  'Co-President':     { color: '#f3e8ff', bg1: 'rgba(168,85,247,0.35)', bg2: 'rgba(109,40,217,0.25)', border: 'rgba(192,132,252,0.6)', dot: '#a855f7' },
+  'Head of Staff':    { color: '#ffe4e6', bg1: 'rgba(244,63,94,0.3)',   bg2: 'rgba(159,18,57,0.25)',  border: 'rgba(244,63,94,0.6)',   dot: '#f43f5e' },
+  'Senior Moderator': { color: '#f3e8ff', bg1: 'rgba(168,85,247,0.25)', bg2: 'rgba(109,40,217,0.15)', border: 'rgba(192,132,252,0.4)', dot: '#a855f7' },
+  'Moderator':        { color: '#f3e8ff', bg1: 'rgba(168,85,247,0.2)',  bg2: 'rgba(109,40,217,0.1)',  border: 'rgba(192,132,252,0.3)', dot: '#a855f7' },
+  'Trial Moderator':  { color: '#e0e7ff', bg1: 'rgba(99,102,241,0.25)', bg2: 'rgba(67,56,202,0.15)',  border: 'rgba(129,140,248,0.4)', dot: '#818cf8' },
+  'Verified':         { color: '#d1fae5', bg1: 'rgba(16,185,129,0.25)', bg2: 'rgba(5,150,105,0.15)',  border: 'rgba(16,185,129,0.5)',  dot: '#10b981' },
+  'Newcomer':         { color: '#d1fae5', bg1: 'rgba(16,185,129,0.25)', bg2: 'rgba(5,150,105,0.15)',  border: 'rgba(16,185,129,0.4)',  dot: '#10b981' },
+  'Member':           { color: 'rgba(255,255,255,0.9)', bg1: 'rgba(255,255,255,0.12)', bg2: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.2)', dot: '#ffffff' },
+};
+
+function getBadgeStyle(roleName) {
+  // Fuzzy match: check if role name contains a known key
+  const lower = roleName.toLowerCase();
+  for (const [key, style] of Object.entries(BADGE_STYLES)) {
+    if (lower.includes(key.toLowerCase())) return { ...style, label: key };
+  }
+  // Default to member style
+  return { ...BADGE_STYLES['Member'], label: roleName };
+}
+
 async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleName) {
-  // Bigger canvas for Discord display
-  const W = 1200;
-  const H = 740;
+  const W = 900;
+  const H = 560;
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
-  const S = W / 900; // scale factor from original 900-wide design
 
-  // ===== STAGE BACKGROUND =====
-  const baseBg = ctx.createRadialGradient(W * 0.5, H * 0.5, 10, W * 0.5, H * 0.5, W * 0.7);
-  baseBg.addColorStop(0, '#1c1040');
-  baseBg.addColorStop(0.55, '#0d0724');
-  baseBg.addColorStop(1, '#050410');
-  ctx.fillStyle = baseBg;
+  // ===== STAGE BACKGROUND (dark #05030a) =====
+  ctx.fillStyle = '#05030a';
   ctx.fillRect(0, 0, W, H);
 
-  // Bottom-left purple nebula
-  const nebula1 = ctx.createRadialGradient(0, H, 0, 0, H, H * 0.95);
-  nebula1.addColorStop(0, 'rgba(160, 115, 255, 0.60)');
-  nebula1.addColorStop(0.4, 'rgba(95, 50, 195, 0.22)');
-  nebula1.addColorStop(0.7, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = nebula1;
+  // Subtle corner blooms
+  const bl1 = ctx.createRadialGradient(W * 0.08, H * 0.95, 0, W * 0.08, H * 0.95, H * 0.7);
+  bl1.addColorStop(0, 'rgba(108,43,217,0.18)');
+  bl1.addColorStop(1, 'rgba(108,43,217,0)');
+  ctx.fillStyle = bl1;
   ctx.fillRect(0, 0, W, H);
 
-  // Top-right purple nebula
-  const nebula2 = ctx.createRadialGradient(W, 0, 0, W, 0, W * 0.85);
-  nebula2.addColorStop(0, 'rgba(128, 72, 255, 0.48)');
-  nebula2.addColorStop(0.46, 'rgba(62, 26, 145, 0.18)');
-  nebula2.addColorStop(0.74, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = nebula2;
-  ctx.fillRect(0, 0, W, H);
-
-  // Bottom-right soft bloom
-  const nebula3 = ctx.createRadialGradient(W * 0.7, H * 1.08, 0, W * 0.7, H * 1.08, H * 0.45);
-  nebula3.addColorStop(0, 'rgba(230, 215, 255, 0.28)');
-  nebula3.addColorStop(0.45, 'rgba(150, 110, 255, 0.12)');
-  nebula3.addColorStop(0.7, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = nebula3;
+  const bl2 = ctx.createRadialGradient(W * 0.92, H * 0.05, 0, W * 0.92, H * 0.05, H * 0.6);
+  bl2.addColorStop(0, 'rgba(108,43,217,0.12)');
+  bl2.addColorStop(1, 'rgba(108,43,217,0)');
+  ctx.fillStyle = bl2;
   ctx.fillRect(0, 0, W, H);
 
   // ===== BEZEL =====
-  const bezelMargin = 36 * S;
-  const bezelX = bezelMargin;
-  const bezelY = bezelMargin;
-  const bezelW = W - bezelMargin * 2;
-  const bezelH = H - bezelMargin * 2;
-  const bezelR = 48 * S;
+  const bM = 28;
+  const bX = bM, bY = bM, bW = W - bM * 2, bH = H - bM * 2;
+  const bR = 44;
 
-  // Bezel gradient background
-  const bezelGrad = ctx.createLinearGradient(bezelX, bezelY, bezelX + bezelW * 0.42, bezelY + bezelH);
-  bezelGrad.addColorStop(0, '#352a55');
-  bezelGrad.addColorStop(0.42, '#141028');
-  bezelGrad.addColorStop(1, '#090614');
-  ctx.fillStyle = bezelGrad;
-  roundRect(ctx, bezelX, bezelY, bezelW, bezelH, bezelR);
+  // Bezel background #110d19
+  ctx.fillStyle = '#110d19';
+  roundRect(ctx, bX, bY, bW, bH, bR);
   ctx.fill();
 
-  // Bezel outer glow
+  // Bezel glow
   ctx.save();
-  ctx.shadowColor = 'rgba(110, 60, 230, 0.85)';
-  ctx.shadowBlur = 60 * S;
-  ctx.strokeStyle = 'rgba(185, 155, 255, 0.22)';
-  ctx.lineWidth = 1.5;
-  roundRect(ctx, bezelX, bezelY, bezelW, bezelH, bezelR);
+  ctx.shadowColor = 'rgba(108,43,217,0.25)';
+  ctx.shadowBlur = 40;
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  roundRect(ctx, bX, bY, bW, bH, bR);
   ctx.stroke();
   ctx.restore();
-
-  // Top highlight on bezel
-  const bezelHL = ctx.createLinearGradient(bezelX, bezelY, bezelX, bezelY + 30 * S);
-  bezelHL.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
-  bezelHL.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = bezelHL;
-  roundRect(ctx, bezelX, bezelY, bezelW, 30 * S, bezelR);
-  ctx.fill();
 
   // ===== CARD FACE =====
-  const pad = 14 * S;
-  const cardX = bezelX + pad;
-  const cardY = bezelY + pad;
-  const cardW = bezelW - pad * 2;
-  const cardH = bezelH - pad * 2;
-  const cardR = 36 * S;
+  const p = 12;
+  const cX = bX + p, cY = bY + p, cW = bW - p * 2, cH = bH - p * 2;
+  const cR = 30;
 
-  // Card background
-  const cardBg = ctx.createLinearGradient(cardX, cardY, cardX + cardW * 0.17, cardY + cardH);
-  cardBg.addColorStop(0, '#171033');
-  cardBg.addColorStop(0.46, '#0e0a22');
-  cardBg.addColorStop(1, '#090618');
-  ctx.fillStyle = cardBg;
-  roundRect(ctx, cardX, cardY, cardW, cardH, cardR);
+  // Card background #090612
+  ctx.fillStyle = '#090612';
+  roundRect(ctx, cX, cY, cW, cH, cR);
   ctx.fill();
 
-  // Card top radial glow
-  const cardTopGlow = ctx.createRadialGradient(cardX + cardW * 0.5, cardY, 0, cardX + cardW * 0.5, cardY, cardH * 0.7);
-  cardTopGlow.addColorStop(0, 'rgba(124, 77, 255, 0.16)');
-  cardTopGlow.addColorStop(0.55, 'rgba(124, 77, 255, 0)');
-  ctx.fillStyle = cardTopGlow;
-  roundRect(ctx, cardX, cardY, cardW, cardH, cardR);
-  ctx.fill();
-
-  // Card top inner highlight
-  const cardInnerHL = ctx.createLinearGradient(cardX, cardY, cardX, cardY + 20 * S);
-  cardInnerHL.addColorStop(0, 'rgba(255, 255, 255, 0.10)');
-  cardInnerHL.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = cardInnerHL;
-  roundRect(ctx, cardX, cardY, cardW, 20 * S, cardR);
-  ctx.fill();
-
-  // Big luminous bloom from bottom
+  // Clip card
   ctx.save();
-  ctx.globalAlpha = 0.95;
-  const bloomH = cardH * 0.72;
-  const bloomGrad = ctx.createRadialGradient(cardX + cardW * 0.5, cardY + cardH, 0, cardX + cardW * 0.5, cardY + cardH, bloomH * 1.2);
-  bloomGrad.addColorStop(0, 'rgba(255, 255, 255, 0.75)');
-  bloomGrad.addColorStop(0.22, 'rgba(215, 195, 255, 0.55)');
-  bloomGrad.addColorStop(0.42, 'rgba(160, 120, 255, 0.40)');
-  bloomGrad.addColorStop(0.58, 'rgba(124, 77, 255, 0.22)');
-  bloomGrad.addColorStop(0.78, 'rgba(124, 77, 255, 0)');
-  ctx.fillStyle = bloomGrad;
-  ctx.fillRect(cardX - cardW * 0.12, cardY + cardH * 0.28, cardW * 1.24, bloomH);
-  ctx.restore();
-
-  // Clip card to rounded rect
-  ctx.save();
-  roundRect(ctx, cardX, cardY, cardW, cardH, cardR);
+  roundRect(ctx, cX, cY, cW, cH, cR);
   ctx.clip();
 
-  // ===== HEADER: Avatar + Info =====
-  const avatarCX = cardX + 120 * S;
-  const avatarCY = cardY + 120 * S;
-  const avatarR = 82 * S;
-
-  // Avatar halo glow
+  // ===== BOTTOM LIGHT BLOOM =====
   ctx.save();
-  const haloGrad = ctx.createRadialGradient(avatarCX, avatarCY, avatarR * 0.5, avatarCX, avatarCY, avatarR + 28 * S);
-  haloGrad.addColorStop(0, 'rgba(145, 95, 255, 0.60)');
-  haloGrad.addColorStop(0.7, 'rgba(145, 95, 255, 0)');
-  ctx.fillStyle = haloGrad;
-  ctx.beginPath();
-  ctx.arc(avatarCX, avatarCY, avatarR + 28 * S, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.globalAlpha = 0.95;
+  const bloomGrad = ctx.createRadialGradient(cX + cW * 0.7, cY + cH * 1.1, 0, cX + cW * 0.7, cY + cH * 1.1, cH * 0.85);
+  bloomGrad.addColorStop(0, '#ffffff');
+  bloomGrad.addColorStop(0.15, '#d1ccff');
+  bloomGrad.addColorStop(0.35, '#8252ff');
+  bloomGrad.addColorStop(0.60, '#3b26df');
+  bloomGrad.addColorStop(0.80, 'rgba(26,12,79,0)');
+  ctx.fillStyle = bloomGrad;
+  ctx.fillRect(cX - cW * 0.1, cY + cH * 0.15, cW * 1.2, cH * 0.85);
   ctx.restore();
 
-  // Avatar conic ring
-  ctx.save();
-  const ringOuter = avatarR + 6 * S;
-  const ringInner = avatarR + 3 * S;
-  const conicGrad = ctx.createLinearGradient(avatarCX - ringOuter, avatarCY - ringOuter, avatarCX + ringOuter, avatarCY + ringOuter);
-  conicGrad.addColorStop(0, 'rgba(216, 195, 255, 0.9)');
-  conicGrad.addColorStop(0.12, 'rgba(124, 77, 255, 0.15)');
-  conicGrad.addColorStop(0.3, 'rgba(124, 77, 255, 0)');
-  conicGrad.addColorStop(0.6, 'rgba(180, 145, 255, 0.65)');
-  conicGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.beginPath();
-  ctx.arc(avatarCX, avatarCY, ringOuter, 0, Math.PI * 2);
-  ctx.arc(avatarCX, avatarCY, ringInner, 0, Math.PI * 2, true);
-  ctx.fillStyle = conicGrad;
-  ctx.fill();
-  ctx.restore();
+  // ===== HEADER =====
+  let hY = cY + 30;
+  const avatarCX = cX + 76;
+  const avatarCY = hY + 48;
+  const avatarR = 39;
 
-  // Avatar background
-  ctx.save();
-  const avatarBg = ctx.createLinearGradient(avatarCX - avatarR, avatarCY - avatarR, avatarCX + avatarR, avatarCY + avatarR);
-  avatarBg.addColorStop(0, '#322063');
-  avatarBg.addColorStop(1, '#160e36');
+  // Avatar wrap background
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.beginPath();
+  ctx.arc(avatarCX, avatarCY, avatarR + 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Avatar inner circle bg
+  const avBg = ctx.createLinearGradient(avatarCX - avatarR, avatarCY - avatarR, avatarCX + avatarR, avatarCY + avatarR);
+  avBg.addColorStop(0, '#271647');
+  avBg.addColorStop(1, '#130927');
+  ctx.fillStyle = avBg;
   ctx.beginPath();
   ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
-  ctx.fillStyle = avatarBg;
   ctx.fill();
-  ctx.strokeStyle = 'rgba(185, 155, 255, 0.6)';
-  ctx.lineWidth = 2.5 * S;
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
   ctx.stroke();
-  ctx.restore();
-
-  // Avatar glow shadow
-  ctx.save();
-  ctx.shadowColor = 'rgba(124, 77, 255, 0.7)';
-  ctx.shadowBlur = 45 * S;
-  ctx.beginPath();
-  ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(185, 155, 255, 0.6)';
-  ctx.lineWidth = 2.5 * S;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-  ctx.restore();
 
   // Avatar image
+  let avatarFallback = false;
   try {
     const avatarUrl = user.displayAvatarURL({ extension: 'png', size: 512 });
     const buffer = await downloadImage(avatarUrl);
@@ -235,329 +171,264 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
     ctx.clip();
     ctx.drawImage(avatarImg, avatarCX - avatarR, avatarCY - avatarR, avatarR * 2, avatarR * 2);
-    // Top sheen
-    const sheen = ctx.createRadialGradient(avatarCX - avatarR * 0.3, avatarCY - avatarR * 0.4, 0, avatarCX, avatarCY, avatarR);
-    sheen.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
-    sheen.addColorStop(0.55, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = sheen;
-    ctx.fillRect(avatarCX - avatarR, avatarCY - avatarR, avatarR * 2, avatarR * 2);
     ctx.restore();
   } catch (e) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
-    ctx.clip();
-    const fbGrad = ctx.createLinearGradient(avatarCX - avatarR, avatarCY - avatarR, avatarCX + avatarR, avatarCY + avatarR);
-    fbGrad.addColorStop(0, '#322063');
-    fbGrad.addColorStop(1, '#160e36');
-    ctx.fillStyle = fbGrad;
-    ctx.fillRect(avatarCX - avatarR, avatarCY - avatarR, avatarR * 2, avatarR * 2);
+    avatarFallback = true;
     ctx.fillStyle = '#ffffff';
-    ctx.font = `800 ${68 * S}px Sora`;
+    ctx.font = '900 34px CabinetGrotesk';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(user.username.charAt(0).toUpperCase(), avatarCX, avatarCY + 2 * S);
-    ctx.restore();
+    ctx.fillText(user.username.charAt(0).toUpperCase(), avatarCX, avatarCY + 2);
   }
 
-  // ===== RIGHT SIDE: Brand + Username + Badges =====
-  const infoX = cardX + 240 * S;
-  let infoY = cardY + 36 * S;
+  // ===== TEXT INFO =====
+  const tX = cX + 148;
+  let tY = cY + 36;
 
-  // Brand "NEXAVERSE" with line
-  ctx.fillStyle = '#b49aff';
-  ctx.globalAlpha = 0.85;
-  ctx.font = `700 ${16 * S}px Inter`;
+  // Brand "NEXAVERSE"
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.font = '800 10.5px Inter';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('NEXAVERSE', infoX, infoY);
+  ctx.fillText('NEXAVERSE', tX, tY);
 
-  // Brand line
-  const brandLineX = infoX + ctx.measureText('NEXAVERSE').width + 14 * S;
-  const brandLineGrad = ctx.createLinearGradient(brandLineX, 0, brandLineX + 160 * S, 0);
-  brandLineGrad.addColorStop(0, 'rgba(180, 148, 255, 0.55)');
-  brandLineGrad.addColorStop(1, 'rgba(180, 148, 255, 0)');
-  ctx.strokeStyle = brandLineGrad;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(brandLineX, infoY + 10 * S);
-  ctx.lineTo(brandLineX + 160 * S, infoY + 10 * S);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
+  tY += 20;
 
-  infoY += 32 * S;
+  // Username (Cabinet Grotesk bold, white)
+  const displayName = user.username.length > 16 ? user.username.substring(0, 14) + '..' : user.username;
+  ctx.font = '900 36px CabinetGrotesk';
+  ctx.fillStyle = '#ffffff';
+  // Name glow for President
+  const badgeStyle = getBadgeStyle(roleName);
+  if (badgeStyle.label === 'President') {
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,255,255,0.4)';
+    ctx.shadowBlur = 12;
+    ctx.fillText(displayName, tX, tY);
+    ctx.restore();
+    ctx.fillText(displayName, tX, tY);
+  } else {
+    ctx.fillText(displayName, tX, tY);
+  }
 
-  // Username (Sora, large, white with gradient)
-  const displayName = user.username.length > 14 ? user.username.substring(0, 12) + '..' : user.username;
-  ctx.font = `800 ${52 * S}px Sora`;
-  const nameGrad = ctx.createLinearGradient(infoX, infoY, infoX, infoY + 52 * S);
-  nameGrad.addColorStop(0.55, '#ffffff');
-  nameGrad.addColorStop(1, '#d9caff');
-  ctx.fillStyle = nameGrad;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
+  tY += 44;
 
-  // Name glow
-  ctx.save();
-  ctx.shadowColor = 'rgba(150, 110, 255, 0.5)';
-  ctx.shadowBlur = 30 * S;
-  ctx.fillText(displayName, infoX, infoY);
-  ctx.restore();
-  ctx.fillText(displayName, infoX, infoY);
+  // ===== BADGES (stacked vertically) =====
+  const badges = [];
+  badges.push({ text: badgeStyle.label, style: badgeStyle });
+  if (userData.verified) {
+    badges.push({ text: 'Verified', style: BADGE_STYLES['Verified'] });
+  }
 
-  infoY += 62 * S;
+  for (const badge of badges) {
+    const bStyle = badge.style;
+    ctx.font = '800 10.5px Inter';
+    const tw = ctx.measureText(badge.text).width;
+    const pillW = tw + 36;
+    const pillH = 26;
+    const pillR = pillH / 2;
 
-  // Role badge (pill)
-  ctx.font = `600 ${16 * S}px Inter`;
-  const roleText = roleName;
-  const roleTW = ctx.measureText(roleText).width;
-  const pillH = 38 * S;
-  const pillPadX = 22 * S;
+    // Pill background
+    const pillBg = ctx.createLinearGradient(tX, tY, tX + pillW, tY + pillH);
+    pillBg.addColorStop(0, bStyle.bg1);
+    pillBg.addColorStop(1, bStyle.bg2);
+    ctx.fillStyle = pillBg;
+    roundRect(ctx, tX, tY, pillW, pillH, pillR);
+    ctx.fill();
 
-  const rolePillW = roleTW + pillPadX * 2;
-  const rolePillGrad = ctx.createLinearGradient(infoX, infoY, infoX, infoY + pillH);
-  rolePillGrad.addColorStop(0, 'rgba(140, 90, 255, 0.34)');
-  rolePillGrad.addColorStop(1, 'rgba(110, 60, 220, 0.18)');
-  ctx.fillStyle = rolePillGrad;
-  roundRect(ctx, infoX, infoY, rolePillW, pillH, pillH / 2);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(190, 160, 255, 0.42)';
-  ctx.lineWidth = 1;
-  roundRect(ctx, infoX, infoY, rolePillW, pillH, pillH / 2);
-  ctx.stroke();
+    // Pill border
+    ctx.strokeStyle = bStyle.border;
+    ctx.lineWidth = 1;
+    roundRect(ctx, tX, tY, pillW, pillH, pillR);
+    ctx.stroke();
 
-  // Role pill inner highlight
-  const pillHL = ctx.createLinearGradient(infoX, infoY, infoX, infoY + 10 * S);
-  pillHL.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
-  pillHL.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = pillHL;
-  roundRect(ctx, infoX, infoY, rolePillW, 10 * S, pillH / 2);
-  ctx.fill();
+    // Inner highlight
+    const pillHL = ctx.createLinearGradient(tX, tY, tX, tY + 8);
+    pillHL.addColorStop(0, 'rgba(255,255,255,0.4)');
+    pillHL.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = pillHL;
+    roundRect(ctx, tX + 2, tY + 1, pillW - 4, 8, pillR);
+    ctx.fill();
 
-  ctx.fillStyle = '#e2d7ff';
-  ctx.font = `600 ${16 * S}px Inter`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(roleText, infoX + rolePillW / 2, infoY + pillH / 2);
+    // Dot
+    ctx.beginPath();
+    ctx.arc(tX + 14, tY + pillH / 2, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = bStyle.dot;
+    ctx.fill();
 
-  // Rank pill (dim)
-  const rankText = rank.name;
-  const rankTW = ctx.measureText(rankText).width;
-  const rankPillW = rankTW + pillPadX * 2;
-  const rankPillX = infoX + rolePillW + 12 * S;
+    // Text
+    ctx.fillStyle = bStyle.color;
+    ctx.font = '800 10.5px Inter';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badge.text.toUpperCase(), tX + 24, tY + pillH / 2);
 
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-  roundRect(ctx, rankPillX, infoY, rankPillW, pillH, pillH / 2);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-  ctx.lineWidth = 1;
-  roundRect(ctx, rankPillX, infoY, rankPillW, pillH, pillH / 2);
-  ctx.stroke();
+    tY += pillH + 8;
+  }
 
-  ctx.fillStyle = '#c2b2ec';
-  ctx.font = `600 ${16 * S}px Inter`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(rankText, rankPillX + rankPillW / 2, infoY + pillH / 2);
+  // ===== STAT GRID (2 rows x 3 cols) =====
+  const isTopRank = rank.position <= 2;
+  const repHigh = repInfo.score >= 80;
+  const repPerfect = repInfo.score === 100;
 
-  infoY += pillH + 24 * S;
-
-  // ===== STAT CARDS =====
   const stats = [
     { label: 'Level', value: `${xpInfo.level}` },
-    { label: 'Rank', value: rank.name },
+    { label: 'Reputation', value: `${repInfo.score}/100`, repStat: true },
+    { label: 'Rank', value: isTopRank ? `#${rank.position}` : (rank.position > 0 ? `#${rank.position}` : 'Unranked'), rankStat: isTopRank },
     { label: 'Credits', value: userData.credits.toLocaleString() },
-    { label: 'Reputation', value: `${repInfo.score}/100` },
     { label: 'Messages', value: userData.messages.toLocaleString() },
     { label: 'Games', value: `${userData.games_won}W` },
   ];
 
-  const colCount = 3;
-  const scGap = 16 * S;
-  const scPaddingX = 48 * S;
-  const scTotalW = cardW - scPaddingX * 2;
-  const scW = (scTotalW - scGap * (colCount - 1)) / colCount;
-  const scH = 82 * S;
+  const gridX = cX + 24;
+  const gridY = cY + 232;
+  const gridGap = 10;
+  const gridColW = (cW - 48 - gridGap * 2) / 3;
+  const gridRowH = 56;
 
   for (let i = 0; i < stats.length; i++) {
-    const col = i % colCount;
-    const row = Math.floor(i / colCount);
-    const sx = cardX + scPaddingX + col * (scW + scGap);
-    const sy = infoY + row * (scH + scGap);
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    const sx = gridX + col * (gridColW + gridGap);
+    const sy = gridY + row * (gridRowH + gridGap);
+
+    let bgColor = 'rgba(0,0,0,0.25)';
+    let borderColor = 'rgba(255,255,255,0.08)';
+    let valueColor = '#ffffff';
+    let shadowColor = null;
+
+    // Rank 1 gold styling
+    if (stats[i].rankStat && rank.position === 1) {
+      const g = ctx.createLinearGradient(sx, sy, sx + gridColW, sy + gridRowH);
+      g.addColorStop(0, 'rgba(255,215,0,0.18)');
+      g.addColorStop(1, 'rgba(0,0,0,0.35)');
+      bgColor = g;
+      borderColor = 'rgba(255,215,0,0.5)';
+      valueColor = '#ffe680';
+      shadowColor = 'rgba(255,215,0,0.5)';
+    }
+    // Rank 2 silver styling
+    else if (stats[i].rankStat && rank.position === 2) {
+      const g = ctx.createLinearGradient(sx, sy, sx + gridColW, sy + gridRowH);
+      g.addColorStop(0, 'rgba(192,192,192,0.18)');
+      g.addColorStop(1, 'rgba(0,0,0,0.35)');
+      bgColor = g;
+      borderColor = 'rgba(211,211,211,0.4)';
+      valueColor = '#e2e8f0';
+      shadowColor = 'rgba(255,255,255,0.4)';
+    }
+    // Perfect reputation shimmer
+    else if (stats[i].repStat && repPerfect) {
+      valueColor = '#10b981';
+      shadowColor = 'rgba(16,185,129,0.5)';
+    }
+    // Low reputation red
+    else if (stats[i].repStat && !repHigh) {
+      valueColor = '#f43f5e';
+      shadowColor = 'rgba(244,63,94,0.5)';
+    }
 
     // Stat card background
-    const scBg = ctx.createLinearGradient(sx, sy, sx + scW * 0.15, sy + scH);
-    scBg.addColorStop(0, 'rgba(255, 255, 255, 0.10)');
-    scBg.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
-    ctx.fillStyle = scBg;
-    roundRect(ctx, sx, sy, scW, scH, 22 * S);
+    ctx.fillStyle = bgColor;
+    roundRect(ctx, sx, sy, gridColW, gridRowH, 16);
     ctx.fill();
 
-    // Stat card border
-    ctx.strokeStyle = 'rgba(185, 155, 255, 0.22)';
+    // Border
+    ctx.strokeStyle = borderColor;
     ctx.lineWidth = 1;
-    roundRect(ctx, sx, sy, scW, scH, 22 * S);
+    roundRect(ctx, sx, sy, gridColW, gridRowH, 16);
     ctx.stroke();
 
-    // Top sheen
-    const sheenGrad = ctx.createLinearGradient(sx + scW * 0.1, sy, sx + scW * 0.9, sy);
-    sheenGrad.addColorStop(0, 'rgba(230, 215, 255, 0)');
-    sheenGrad.addColorStop(0.5, 'rgba(230, 215, 255, 0.8)');
-    sheenGrad.addColorStop(1, 'rgba(230, 215, 255, 0)');
-    ctx.strokeStyle = sheenGrad;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(sx + scW * 0.1, sy + 1);
-    ctx.lineTo(sx + scW * 0.9, sy + 1);
-    ctx.stroke();
-
-    // Under-glow
-    const underGlow = ctx.createRadialGradient(sx + scW / 2, sy + scH + scH * 0.75, 0, sx + scW / 2, sy + scH + scH * 0.75, scH * 1.15);
-    underGlow.addColorStop(0, 'rgba(200, 175, 255, 0.6)');
-    underGlow.addColorStop(0.55, 'rgba(124, 77, 255, 0.15)');
-    underGlow.addColorStop(0.75, 'rgba(124, 77, 255, 0)');
-    ctx.fillStyle = underGlow;
-    roundRect(ctx, sx, sy, scW, scH, 22 * S);
-    ctx.fill();
-
-    // Inner shadow at top
-    const innerShadow = ctx.createLinearGradient(sx, sy, sx, sy + 12 * S);
-    innerShadow.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
-    innerShadow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = innerShadow;
-    roundRect(ctx, sx, sy, scW, 12 * S, 22 * S);
-    ctx.fill();
-
-    // Label with dot
-    const dotX = sx + 20 * S;
-    const dotY = sy + 20 * S;
-
-    // Dot
-    ctx.beginPath();
-    ctx.arc(dotX, dotY, 3 * S, 0, Math.PI * 2);
-    ctx.fillStyle = '#b48cff';
-    ctx.fill();
-    ctx.save();
-    ctx.shadowColor = 'rgba(180, 140, 255, 0.9)';
-    ctx.shadowBlur = 10 * S;
-    ctx.beginPath();
-    ctx.arc(dotX, dotY, 3 * S, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    ctx.fillStyle = '#b3a1e6';
-    ctx.font = `700 ${13 * S}px Inter`;
+    // Label
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.font = '800 9.5px Inter';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(stats[i].label.toUpperCase(), dotX + 12 * S, dotY - 6 * S);
+    ctx.fillText(stats[i].label.toUpperCase(), sx + 16, sy + 12);
 
     // Value
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `800 ${28 * S}px Sora`;
-    ctx.save();
-    ctx.shadowColor = 'rgba(160, 120, 255, 0.35)';
-    ctx.shadowBlur = 22 * S;
-    ctx.fillText(stats[i].value, sx + 20 * S, sy + 42 * S);
-    ctx.restore();
-    ctx.fillText(stats[i].value, sx + 20 * S, sy + 42 * S);
+    ctx.fillStyle = valueColor;
+    ctx.font = '800 22px CabinetGrotesk';
+    ctx.textBaseline = 'top';
+    if (shadowColor) {
+      ctx.save();
+      ctx.shadowColor = shadowColor;
+      ctx.shadowBlur = 10;
+      ctx.fillText(stats[i].value, sx + 16, sy + 28);
+      ctx.restore();
+      ctx.fillText(stats[i].value, sx + 16, sy + 28);
+    } else {
+      ctx.fillText(stats[i].value, sx + 16, sy + 28);
+    }
   }
 
-  infoY += scH * 2 + scGap + 24 * S;
-
-  // ===== XP PROGRESS BAR =====
-  const barX = cardX + scPaddingX;
-  const barW = cardW - scPaddingX * 2;
-  const barH = 18 * S;
+  // ===== XP BAR =====
+  const xpY = gridY + 2 * (gridRowH + gridGap) + 18;
+  const barX = cX + 24;
+  const barW = cW - 48;
+  const barH = 9;
   const progress = xpInfo.xpNeeded > 0 ? Math.min(xpInfo.xp / xpInfo.xpNeeded, 1) : 0;
 
-  // XP label row
-  ctx.fillStyle = '#b3a1e6';
-  ctx.font = `700 ${14 * S}px Inter`;
+  // XP label left
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.font = '800 9.5px Inter';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('EXPERIENCE', barX, infoY);
+  ctx.fillText('EXPERIENCE', barX, xpY);
 
-  // XP value on right
-  ctx.fillStyle = '#f2ecff';
-  ctx.font = `700 ${17 * S}px Sora`;
-  ctx.save();
-  ctx.shadowColor = 'rgba(170, 130, 255, 0.5)';
-  ctx.shadowBlur = 16 * S;
+  // XP value right
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '800 13px CabinetGrotesk';
   ctx.textAlign = 'right';
-  ctx.fillText(`XP ${xpInfo.xp} / ${xpInfo.xpNeeded}`, barX + barW, infoY);
-  ctx.restore();
-  ctx.textAlign = 'right';
-  ctx.fillText(`XP ${xpInfo.xp} / ${xpInfo.xpNeeded}`, barX + barW, infoY);
+  ctx.fillText(`XP ${xpInfo.xp.toLocaleString()} / ${xpInfo.xpNeeded.toLocaleString()}`, barX + barW, xpY);
 
-  infoY += 28 * S;
+  const trackY = xpY + 18;
 
   // Track background
-  ctx.save();
-  ctx.fillStyle = 'rgba(10, 6, 24, 0.75)';
-  roundRect(ctx, barX, infoY, barW, barH, barH / 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  roundRect(ctx, barX, trackY, barW, barH, barH / 2);
   ctx.fill();
-  ctx.strokeStyle = 'rgba(185, 155, 255, 0.24)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
   ctx.lineWidth = 1;
-  roundRect(ctx, barX, infoY, barW, barH, barH / 2);
+  roundRect(ctx, barX, trackY, barW, barH, barH / 2);
   ctx.stroke();
-
-  // Inner shadow
-  const trackShadow = ctx.createLinearGradient(barX, infoY, barX, infoY + 10 * S);
-  trackShadow.addColorStop(0, 'rgba(0, 0, 0, 0.65)');
-  trackShadow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = trackShadow;
-  roundRect(ctx, barX, infoY, barW, 10 * S, barH / 2);
-  ctx.fill();
-  ctx.restore();
 
   // Fill bar
   if (progress > 0) {
-    const fillW = Math.max(barW * progress, 24 * S);
+    const fillW = Math.max(barW * progress, 12);
 
     ctx.save();
-    roundRect(ctx, barX, infoY, barW, barH, barH / 2);
+    roundRect(ctx, barX, trackY, barW, barH, barH / 2);
     ctx.clip();
 
-    // Gradient fill
+    // Gradient fill matching HTML: #5b31df → #9b72ff → #fff → #9b72ff → #5b31df
     const fillGrad = ctx.createLinearGradient(barX, 0, barX + fillW, 0);
-    fillGrad.addColorStop(0, '#5f32f5');
-    fillGrad.addColorStop(0.55, '#8f5cff');
-    fillGrad.addColorStop(0.85, '#c9b3ff');
-    fillGrad.addColorStop(1, '#ffffff');
+    fillGrad.addColorStop(0, '#5b31df');
+    fillGrad.addColorStop(0.3, '#9b72ff');
+    fillGrad.addColorStop(0.5, '#ffffff');
+    fillGrad.addColorStop(0.7, '#9b72ff');
+    fillGrad.addColorStop(1, '#5b31df');
     ctx.fillStyle = fillGrad;
-    ctx.fillRect(barX, infoY, fillW, barH);
+    ctx.fillRect(barX, trackY, fillW, barH);
 
     // Glow
-    ctx.shadowColor = 'rgba(150, 100, 255, 0.9)';
-    ctx.shadowBlur = 26 * S;
+    ctx.shadowColor = 'rgba(255,255,255,0.6)';
+    ctx.shadowBlur = 12;
     ctx.fillStyle = 'transparent';
-    ctx.fillRect(barX, infoY, fillW, barH);
+    ctx.fillRect(barX, trackY, fillW, barH);
     ctx.shadowBlur = 0;
-
-    // Diagonal stripe texture
-    ctx.globalAlpha = 0.5;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
-    for (let sx2 = barX - 20; sx2 < barX + fillW + 20; sx2 += 22 * S) {
-      ctx.beginPath();
-      ctx.moveTo(sx2, infoY + barH);
-      ctx.lineTo(sx2 + 10 * S, infoY);
-      ctx.lineTo(sx2 + 12 * S, infoY);
-      ctx.lineTo(sx2 + 22 * S, infoY + barH);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
 
     ctx.restore();
   }
 
   // ===== FOOTER =====
-  ctx.fillStyle = 'rgba(200, 175, 255, 0.38)';
-  ctx.font = `700 ${13 * S}px Inter`;
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.font = '900 10px CabinetGrotesk';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
-  ctx.fillText('NEXAVERSE', cardX + cardW - 30 * S, cardY + cardH - 18 * S);
+  ctx.fillText('NEXAVERSE', cX + cW - 24, cY + cH - 14);
 
-  ctx.restore(); // Unclip card
+  ctx.restore(); // unclip
 
   return new AttachmentBuilder(canvas.toBuffer('image/png'), { name: 'profile.png' });
 }
@@ -569,7 +440,6 @@ async function generateBrandBanner(text = 'NEXAVERSE', subtitle = 'COMPLETE DISC
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
-  // Deep dark background with subtle purple tint at edges
   const bg = ctx.createRadialGradient(W / 2, H / 2, 50, W / 2, H / 2, W * 0.7);
   bg.addColorStop(0, '#100a20');
   bg.addColorStop(0.6, '#0a0616');
@@ -577,14 +447,12 @@ async function generateBrandBanner(text = 'NEXAVERSE', subtitle = 'COMPLETE DISC
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle corner glow bottom-right
   const corner = ctx.createRadialGradient(W * 0.92, H * 0.95, 0, W * 0.92, H * 0.95, H * 0.9);
   corner.addColorStop(0, 'rgba(124, 77, 255, 0.22)');
   corner.addColorStop(1, 'rgba(124, 77, 255, 0)');
   ctx.fillStyle = corner;
   ctx.fillRect(0, 0, W, H);
 
-  // Fine grain texture
   ctx.globalAlpha = 0.35;
   ctx.fillStyle = 'rgba(255,255,255,0.04)';
   for (let y = 0; y < H; y += 4) {
@@ -594,26 +462,23 @@ async function generateBrandBanner(text = 'NEXAVERSE', subtitle = 'COMPLETE DISC
   }
   ctx.globalAlpha = 1;
 
-  // Title text — large, wide-tracked, white with slight glow
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.save();
   ctx.shadowColor = 'rgba(160, 120, 255, 0.35)';
   ctx.shadowBlur = 40;
   ctx.fillStyle = '#f2f0f7';
-  ctx.font = `800 ${Math.floor(H * 0.34)}px Sora`;
+  ctx.font = `900 ${Math.floor(H * 0.34)}px CabinetGrotesk`;
   ctx.fillText(text, W / 2, H / 2 - (subtitle ? 18 : 0));
   ctx.restore();
 
-  // Letter-spaced subtitle underneath
   if (subtitle) {
     const chars = subtitle.split('').join(' ');
     ctx.fillStyle = 'rgba(190, 170, 235, 0.55)';
-    ctx.font = `700 ${22}px Inter`;
+    ctx.font = '700 22px Inter';
     ctx.fillText(chars, W / 2, H / 2 + H * 0.22);
   }
 
-  // Thin accent line above title
   const lineGrad = ctx.createLinearGradient(W * 0.3, 0, W * 0.7, 0);
   lineGrad.addColorStop(0, 'rgba(160, 120, 255, 0)');
   lineGrad.addColorStop(0.5, 'rgba(190, 160, 255, 0.8)');
