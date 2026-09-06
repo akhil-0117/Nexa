@@ -58,17 +58,12 @@ async function showProfilePanel(interaction) {
 
   const attachment = await generateProfileCard(interaction.user, userData, xpInfo, rank, repInfo, roleName);
 
-  const embed = new EmbedBuilder()
-    .setAuthor({ name: `${interaction.user.username} \u2014 Profile`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
-    .setColor(config.colors.primary)
-    .setImage('attachment://profile.png')
-    .setTimestamp();
-
   const backRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('nav_account_back').setLabel('Back').setStyle(ButtonStyle.Secondary)
   );
 
-  await interaction.editReply({ embeds: [embed], files: [attachment], attachments: [], components: [backRow] });
+  // Send image directly without embed wrapper — displays at full size
+  await interaction.editReply({ content: null, embeds: [], files: [attachment], attachments: [], components: [backRow] });
 }
 
 async function showActivityPanel(interaction) {
