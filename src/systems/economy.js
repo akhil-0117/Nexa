@@ -127,9 +127,7 @@ function getTransactions(userId, guildId = null, limit = 20, offset = 0) {
     limit = guildId;
     guildId = null;
   }
-  if (guildId) {
-    return db.prepare('SELECT * FROM transactions WHERE user_id = ? AND guild_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(userId, guildId, limit, offset);
-  }
+  // transactions table has no guild_id column — filter only by user_id
   return db.prepare('SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(userId, limit, offset);
 }
 
