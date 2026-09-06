@@ -123,6 +123,11 @@ module.exports = {
           // Report take-action button
           if (id.startsWith('report_take_action_')) { await handleReportTakeAction(interaction, id); return; }
           if (id.startsWith('ticket_close_')) { await handleTicketClose(interaction, id); return; }
+          if (id.startsWith('ticket_action_warn_')) { await handleTicketAction(interaction, id, 'warn'); return; }
+          if (id.startsWith('ticket_action_kick_')) { await handleTicketAction(interaction, id, 'kick'); return; }
+          if (id.startsWith('ticket_action_ban_')) { await handleTicketAction(interaction, id, 'ban'); return; }
+          if (id.startsWith('ticket_action_timeout_')) { await handleTicketAction(interaction, id, 'timeout'); return; }
+          if (id.startsWith('ticket_action_dismiss_')) { await handleTicketDismiss(interaction, id); return; }
 
           // Registered component handlers
           const handler = client.buttons.get(id) || findDynamicHandler(client.buttons, id);
@@ -2563,9 +2568,36 @@ async function handleReportTakeAction(interaction, id) {
     .setFooter({ text: 'Report ' + reportId + ' \u00b7 NEXAVERSE' })
     .setTimestamp();
   
+  // Action panel embed (only higher officials can use the buttons)
+  const actionEmbed = new EmbedBuilder()
+    .setTitle('Staff Action Panel')
+    .setColor(config.colors.moderation)
+    .setDescription(
+      '\u2501'.repeat(32) + '\n' +
+      '**Quick Actions** (Head of Staff+ only)\n\n' +
+      'Use the buttons below to take action on <@' + report.target_id + '>.\n' +
+      'All actions are logged with your staff ID and a case number.\n' +
+      '\u2501'.repeat(32)
+    )
+    .setFooter({ text: 'Actions are permanent \u2014 confirm before clicking' })
+    .setTimestamp();
+
+  const actionRow1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ticket_action_warn_' + report.target_id + '_' + reportId).setLabel('Warn').setStyle(ButtonStyle.Primary).setEmoji('\u26a0\ufe0f'),
+    new ButtonBuilder().setCustomId('ticket_action_kick_' + report.target_id + '_' + reportId).setLabel('Kick').setStyle(ButtonStyle.Primary).setEmoji('\uD83D\uDC62'),
+    new ButtonBuilder().setCustomId('ticket_action_ban_' + report.target_id + '_' + reportId).setLabel('Ban').setStyle(ButtonStyle.Danger).setEmoji('\uD83D\uDEAB'),
+  );
+
+  const actionRow2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ticket_action_timeout_' + report.target_id + '_' + reportId).setLabel('Timeout 1h').setStyle(ButtonStyle.Secondary).setEmoji('\u23F0'),
+    new ButtonBuilder().setCustomId('ticket_action_dismiss_' + reportId).setLabel('Dismiss Report').setStyle(ButtonStyle.Secondary).setEmoji('\u274C'),
+    new ButtonBuilder().setCustomId('ticket_close_ticket_' + reportId).setLabel('Close Ticket').setStyle(ButtonStyle.Danger).setEmoji('\uD83D\uDD12'),
+  );
+
   await ticketChannel.send({
     content: '<@' + interaction.user.id + '> <@' + report.reporter_id + '>',
-    embeds: [ticketEmbed],
+    embeds: [ticketEmbed, actionEmbed],
+    components: [actionRow1, actionRow2],
   });
   
   await log(interaction.guild, 'tickets', 'Ticket Created', {
@@ -2639,4 +2671,171 @@ async function handleTicketClose(interaction, id) {
   setTimeout(() => {
     if (channel) channel.delete().catch(() => {});
   }, 10000);
+}
+
+// ===== TICKET ACTION HANDLERS =====
+
+async function handleTicketAction(interaction, id, action) {
+  const { isHigherOfficial } = require('../utils/permissions');
+  if (!isHigherOfficial(interaction.member)) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Access Denied').setDescription('Head of Staff or higher required.').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+  
+  // Parse: ticket_action_<action>_<targetId>_<reportId>
+  const parts = id.split('_');
+  const targetId = parts[3];
+  const reportId = parts[4];
+  
+  if (!targetId || !reportId) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Error').setDescription('Invalid button data.').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+  
+  await interaction.deferReply();
+  
+  const { getDb } = require('../database/init');
+  const { generateCaseId } = require('../utils/helpers');
+  const { log } = require('../systems/logging');
+  const { createCase } = require('../systems/moderation');
+  const { sendDMById } = require('../utils/dm');
+  
+  const db = getDb();
+  const caseId = generateCaseId();
+  const modId = interaction.user.id;
+  const divider = '\u2501'.repeat(32);
+  
+  let actionResult = '';
+  let actionColor = config.colors.warning;
+  
+  switch (action) {
+    case 'warn': {
+      createCase(targetId, modId, 'warn', 'Report ticket action', { reputationChange: 5, guildId: interaction.guild.id });
+      actionResult = 'Warned';
+      actionColor = config.colors.warning;
+      await sendDMById(interaction.guild, targetId,
+        new EmbedBuilder().setTitle('Warning').setColor(config.colors.warning)
+          .setDescription(divider + '\nYou have been warned in **' + interaction.guild.name + '**\n**Reason** Report ticket action\n**By** <@' + modId + '>\n' + divider)
+          .setTimestamp()
+      );
+      break;
+    }
+    case 'kick': {
+      createCase(targetId, modId, 'kick', 'Report ticket action', { reputationChange: 10, guildId: interaction.guild.id });
+      actionResult = 'Kicked';
+      actionColor = config.colors.error;
+      await sendDMById(interaction.guild, targetId,
+        new EmbedBuilder().setTitle('Kicked').setColor(config.colors.error)
+          .setDescription(divider + '\nYou have been kicked from **' + interaction.guild.name + '**\n**Reason** Report ticket action\n**By** <@' + modId + '>\n' + divider)
+          .setTimestamp()
+      );
+      try {
+        await interaction.guild.members.kick(targetId, 'Report ticket action');
+      } catch (e) {
+        actionResult = 'Kicked (DM sent, removal failed: ' + e.message + ')';
+      }
+      break;
+    }
+    case 'ban': {
+      createCase(targetId, modId, 'ban', 'Report ticket action', { reputationChange: 15, guildId: interaction.guild.id });
+      actionResult = 'Banned';
+      actionColor = config.colors.error;
+      await sendDMById(interaction.guild, targetId,
+        new EmbedBuilder().setTitle('Banned').setColor(config.colors.error)
+          .setDescription(divider + '\nYou have been banned from **' + interaction.guild.name + '**\n**Reason** Report ticket action\n**By** <@' + modId + '>\n' + divider)
+          .setTimestamp()
+      );
+      try {
+        await interaction.guild.members.ban(targetId, { reason: 'Report ticket action' });
+      } catch (e) {
+        actionResult = 'Banned (DM sent, ban failed: ' + e.message + ')';
+      }
+      break;
+    }
+    case 'timeout': {
+      createCase(targetId, modId, 'timeout', 'Report ticket action', { duration: 3600000, reputationChange: 3, guildId: interaction.guild.id });
+      actionResult = 'Timed out (1 hour)';
+      actionColor = config.colors.warning;
+      await sendDMById(interaction.guild, targetId,
+        new EmbedBuilder().setTitle('Timed Out').setColor(config.colors.warning)
+          .setDescription(divider + '\nYou have been timed out in **' + interaction.guild.name + '** for 1 hour\n**Reason** Report ticket action\n**By** <@' + modId + '>\n' + divider)
+          .setTimestamp()
+      );
+      try {
+        const member = await interaction.guild.members.fetch(targetId);
+        await member.timeout(3600000, 'Report ticket action');
+      } catch (e) {
+        actionResult = 'Timeout DM sent, but timeout failed: ' + e.message;
+      }
+      break;
+    }
+  }
+  
+  // Log the action
+  await log(interaction.guild, 'moderation', action.charAt(0).toUpperCase() + action.slice(1) + ' (Report)', {
+    actor: modId,
+    target: targetId,
+    reason: 'Report ' + reportId,
+    caseId,
+  });
+  
+  // Update report status
+  db.prepare('UPDATE reports SET status = ?, resolution = ? WHERE id = ?').run('resolved', action + ' by ' + modId, reportId);
+  
+  // Update the ticket with action taken
+  const actionEmbed = new EmbedBuilder()
+    .setTitle('Action Taken')
+    .setColor(actionColor)
+    .setDescription(
+      divider + '\n' +
+      '**Action** ' + actionResult + '\n' +
+      '**Target** <@' + targetId + '>\n' +
+      '**By** <@' + modId + '>\n' +
+      '**Case** ' + caseId + '\n' +
+      divider
+    )
+    .setTimestamp();
+  
+  await interaction.editReply({ embeds: [actionEmbed] });
+}
+
+async function handleTicketDismiss(interaction, id) {
+  const { isHigherOfficial } = require('../utils/permissions');
+  if (!isHigherOfficial(interaction.member)) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('Access Denied').setDescription('Head of Staff or higher required.').setColor(config.colors.error)],
+      flags: 64,
+    });
+  }
+  
+  const reportId = id.replace('ticket_action_dismiss_', '');
+  const { getDb } = require('../database/init');
+  const { log } = require('../systems/logging');
+  
+  const db = getDb();
+  db.prepare('UPDATE reports SET status = ?, resolution = ? WHERE id = ?').run('dismissed', 'Dismissed by ' + interaction.user.id, reportId);
+  
+  await log(interaction.guild, 'reports', 'Report Dismissed', {
+    actor: interaction.user.id,
+    reason: 'Report ' + reportId,
+  });
+  
+  const divider = '\u2501'.repeat(32);
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setTitle('Report Dismissed')
+      .setColor(config.colors.info)
+      .setDescription(
+        divider + '\n' +
+        'This report has been dismissed by <@' + interaction.user.id + '>.\\n' +
+        'No further action will be taken.\n' +
+        divider
+      )
+      .setTimestamp()
+    ],
+  });
 }
