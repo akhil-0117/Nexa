@@ -53,18 +53,17 @@ const BADGE_STYLES = {
 };
 
 function getBadgeStyle(roleName) {
-  // Fuzzy match: check if role name contains a known key
   const lower = roleName.toLowerCase();
   for (const [key, style] of Object.entries(BADGE_STYLES)) {
     if (lower.includes(key.toLowerCase())) return { ...style, label: key };
   }
-  // Default to member style
   return { ...BADGE_STYLES['Member'], label: roleName };
 }
 
 async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleName) {
-  const W = 900;
-  const H = 560;
+  const W = 1800;
+  const H = 1120;
+  const S = 2; // scale factor: all original 900x560 coords × 2
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
@@ -86,11 +85,10 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   ctx.fillRect(0, 0, W, H);
 
   // ===== BEZEL =====
-  const bM = 28;
+  const bM = 28 * S;
   const bX = bM, bY = bM, bW = W - bM * 2, bH = H - bM * 2;
-  const bR = 44;
+  const bR = 44 * S;
 
-  // Bezel background #110d19
   ctx.fillStyle = '#110d19';
   roundRect(ctx, bX, bY, bW, bH, bR);
   ctx.fill();
@@ -98,19 +96,18 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   // Bezel glow
   ctx.save();
   ctx.shadowColor = 'rgba(108,43,217,0.25)';
-  ctx.shadowBlur = 40;
+  ctx.shadowBlur = 40 * S;
   ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 2;
   roundRect(ctx, bX, bY, bW, bH, bR);
   ctx.stroke();
   ctx.restore();
 
   // ===== CARD FACE =====
-  const p = 12;
+  const p = 12 * S;
   const cX = bX + p, cY = bY + p, cW = bW - p * 2, cH = bH - p * 2;
-  const cR = 30;
+  const cR = 30 * S;
 
-  // Card background #090612
   ctx.fillStyle = '#090612';
   roundRect(ctx, cX, cY, cW, cH, cR);
   ctx.fill();
@@ -134,18 +131,18 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   ctx.restore();
 
   // ===== HEADER =====
-  let hY = cY + 30;
-  const avatarCX = cX + 76;
-  const avatarCY = hY + 48;
-  const avatarR = 39;
+  let hY = cY + 30 * S;
+  const avatarCX = cX + 76 * S;
+  const avatarCY = hY + 48 * S;
+  const avatarR = 39 * S;
 
   // Avatar wrap background
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
   ctx.beginPath();
-  ctx.arc(avatarCX, avatarCY, avatarR + 9, 0, Math.PI * 2);
+  ctx.arc(avatarCX, avatarCY, avatarR + 9 * S, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 2;
   ctx.stroke();
 
   // Avatar inner circle bg
@@ -157,7 +154,7 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 2;
   ctx.stroke();
 
   // Avatar image
@@ -175,35 +172,34 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
   } catch (e) {
     avatarFallback = true;
     ctx.fillStyle = '#ffffff';
-    ctx.font = '900 34px CabinetGrotesk';
+    ctx.font = `900 ${34 * S}px CabinetGrotesk`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(user.username.charAt(0).toUpperCase(), avatarCX, avatarCY + 2);
+    ctx.fillText(user.username.charAt(0).toUpperCase(), avatarCX, avatarCY + 2 * S);
   }
 
   // ===== TEXT INFO =====
-  const tX = cX + 148;
-  let tY = cY + 36;
+  const tX = cX + 148 * S;
+  let tY = cY + 36 * S;
 
   // Brand "NEXAVERSE"
   ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.font = '800 10.5px Inter';
+  ctx.font = `800 ${10.5 * S}px Inter`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText('NEXAVERSE', tX, tY);
 
-  tY += 20;
+  tY += 20 * S;
 
-  // Username (Cabinet Grotesk bold, white)
+  // Username
   const displayName = user.username.length > 16 ? user.username.substring(0, 14) + '..' : user.username;
-  ctx.font = '900 36px CabinetGrotesk';
+  ctx.font = `900 ${36 * S}px CabinetGrotesk`;
   ctx.fillStyle = '#ffffff';
-  // Name glow for President
   const badgeStyle = getBadgeStyle(roleName);
   if (badgeStyle.label === 'President') {
     ctx.save();
     ctx.shadowColor = 'rgba(255,255,255,0.4)';
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 12 * S;
     ctx.fillText(displayName, tX, tY);
     ctx.restore();
     ctx.fillText(displayName, tX, tY);
@@ -211,7 +207,7 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     ctx.fillText(displayName, tX, tY);
   }
 
-  tY += 44;
+  tY += 44 * S;
 
   // ===== BADGES (stacked vertically) =====
   const badges = [];
@@ -222,13 +218,12 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
 
   for (const badge of badges) {
     const bStyle = badge.style;
-    ctx.font = '800 10.5px Inter';
+    ctx.font = `800 ${10.5 * S}px Inter`;
     const tw = ctx.measureText(badge.text).width;
-    const pillW = tw + 36;
-    const pillH = 26;
+    const pillW = tw + 36 * S;
+    const pillH = 26 * S;
     const pillR = pillH / 2;
 
-    // Pill background
     const pillBg = ctx.createLinearGradient(tX, tY, tX + pillW, tY + pillH);
     pillBg.addColorStop(0, bStyle.bg1);
     pillBg.addColorStop(1, bStyle.bg2);
@@ -236,34 +231,33 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     roundRect(ctx, tX, tY, pillW, pillH, pillR);
     ctx.fill();
 
-    // Pill border
     ctx.strokeStyle = bStyle.border;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.5;
     roundRect(ctx, tX, tY, pillW, pillH, pillR);
     ctx.stroke();
 
     // Inner highlight
-    const pillHL = ctx.createLinearGradient(tX, tY, tX, tY + 8);
+    const pillHL = ctx.createLinearGradient(tX, tY, tX, tY + 8 * S);
     pillHL.addColorStop(0, 'rgba(255,255,255,0.4)');
     pillHL.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = pillHL;
-    roundRect(ctx, tX + 2, tY + 1, pillW - 4, 8, pillR);
+    roundRect(ctx, tX + 2, tY + 1, pillW - 4, 8 * S, pillR);
     ctx.fill();
 
     // Dot
     ctx.beginPath();
-    ctx.arc(tX + 14, tY + pillH / 2, 3.5, 0, Math.PI * 2);
+    ctx.arc(tX + 14 * S, tY + pillH / 2, 3.5 * S, 0, Math.PI * 2);
     ctx.fillStyle = bStyle.dot;
     ctx.fill();
 
     // Text
     ctx.fillStyle = bStyle.color;
-    ctx.font = '800 10.5px Inter';
+    ctx.font = `800 ${10.5 * S}px Inter`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(badge.text.toUpperCase(), tX + 24, tY + pillH / 2);
+    ctx.fillText(badge.text.toUpperCase(), tX + 24 * S, tY + pillH / 2);
 
-    tY += pillH + 8;
+    tY += pillH + 8 * S;
   }
 
   // ===== STAT GRID (2 rows x 3 cols) =====
@@ -280,11 +274,11 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     { label: 'Games', value: `${userData.games_won}W` },
   ];
 
-  const gridX = cX + 24;
-  const gridY = cY + 232;
-  const gridGap = 10;
-  const gridColW = (cW - 48 - gridGap * 2) / 3;
-  const gridRowH = 56;
+  const gridX = cX + 24 * S;
+  const gridY = cY + 232 * S;
+  const gridGap = 10 * S;
+  const gridColW = (cW - 48 * S - gridGap * 2) / 3;
+  const gridRowH = 56 * S;
 
   for (let i = 0; i < stats.length; i++) {
     const col = i % 3;
@@ -297,7 +291,6 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     let valueColor = '#ffffff';
     let shadowColor = null;
 
-    // Rank 1 gold styling
     if (stats[i].rankStat && rank.position === 1) {
       const g = ctx.createLinearGradient(sx, sy, sx + gridColW, sy + gridRowH);
       g.addColorStop(0, 'rgba(255,215,0,0.18)');
@@ -306,9 +299,7 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
       borderColor = 'rgba(255,215,0,0.5)';
       valueColor = '#ffe680';
       shadowColor = 'rgba(255,215,0,0.5)';
-    }
-    // Rank 2 silver styling
-    else if (stats[i].rankStat && rank.position === 2) {
+    } else if (stats[i].rankStat && rank.position === 2) {
       const g = ctx.createLinearGradient(sx, sy, sx + gridColW, sy + gridRowH);
       g.addColorStop(0, 'rgba(192,192,192,0.18)');
       g.addColorStop(1, 'rgba(0,0,0,0.35)');
@@ -316,92 +307,81 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
       borderColor = 'rgba(211,211,211,0.4)';
       valueColor = '#e2e8f0';
       shadowColor = 'rgba(255,255,255,0.4)';
-    }
-    // Perfect reputation shimmer
-    else if (stats[i].repStat && repPerfect) {
+    } else if (stats[i].repStat && repPerfect) {
       valueColor = '#10b981';
       shadowColor = 'rgba(16,185,129,0.5)';
-    }
-    // Low reputation red
-    else if (stats[i].repStat && !repHigh) {
+    } else if (stats[i].repStat && !repHigh) {
       valueColor = '#f43f5e';
       shadowColor = 'rgba(244,63,94,0.5)';
     }
 
-    // Stat card background
     ctx.fillStyle = bgColor;
-    roundRect(ctx, sx, sy, gridColW, gridRowH, 16);
+    roundRect(ctx, sx, sy, gridColW, gridRowH, 16 * S);
     ctx.fill();
 
-    // Border
     ctx.strokeStyle = borderColor;
-    ctx.lineWidth = 1;
-    roundRect(ctx, sx, sy, gridColW, gridRowH, 16);
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, sx, sy, gridColW, gridRowH, 16 * S);
     ctx.stroke();
 
     // Label
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.font = '800 9.5px Inter';
+    ctx.font = `800 ${9.5 * S}px Inter`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(stats[i].label.toUpperCase(), sx + 16, sy + 12);
+    ctx.fillText(stats[i].label.toUpperCase(), sx + 16 * S, sy + 12 * S);
 
     // Value
     ctx.fillStyle = valueColor;
-    ctx.font = '800 22px CabinetGrotesk';
+    ctx.font = `800 ${22 * S}px CabinetGrotesk`;
     ctx.textBaseline = 'top';
     if (shadowColor) {
       ctx.save();
       ctx.shadowColor = shadowColor;
-      ctx.shadowBlur = 10;
-      ctx.fillText(stats[i].value, sx + 16, sy + 28);
+      ctx.shadowBlur = 10 * S;
+      ctx.fillText(stats[i].value, sx + 16 * S, sy + 28 * S);
       ctx.restore();
-      ctx.fillText(stats[i].value, sx + 16, sy + 28);
+      ctx.fillText(stats[i].value, sx + 16 * S, sy + 28 * S);
     } else {
-      ctx.fillText(stats[i].value, sx + 16, sy + 28);
+      ctx.fillText(stats[i].value, sx + 16 * S, sy + 28 * S);
     }
   }
 
   // ===== XP BAR =====
-  const xpY = gridY + 2 * (gridRowH + gridGap) + 18;
-  const barX = cX + 24;
-  const barW = cW - 48;
-  const barH = 9;
+  const xpY = gridY + 2 * (gridRowH + gridGap) + 18 * S;
+  const barX = cX + 24 * S;
+  const barW = cW - 48 * S;
+  const barH = 9 * S;
   const progress = xpInfo.xpNeeded > 0 ? Math.min(xpInfo.xp / xpInfo.xpNeeded, 1) : 0;
 
-  // XP label left
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.font = '800 9.5px Inter';
+  ctx.font = `800 ${9.5 * S}px Inter`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText('EXPERIENCE', barX, xpY);
 
-  // XP value right
   ctx.fillStyle = '#ffffff';
-  ctx.font = '800 13px CabinetGrotesk';
+  ctx.font = `800 ${13 * S}px CabinetGrotesk`;
   ctx.textAlign = 'right';
   ctx.fillText(`XP ${xpInfo.xp.toLocaleString()} / ${xpInfo.xpNeeded.toLocaleString()}`, barX + barW, xpY);
 
-  const trackY = xpY + 18;
+  const trackY = xpY + 18 * S;
 
-  // Track background
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   roundRect(ctx, barX, trackY, barW, barH, barH / 2);
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.5;
   roundRect(ctx, barX, trackY, barW, barH, barH / 2);
   ctx.stroke();
 
-  // Fill bar
   if (progress > 0) {
-    const fillW = Math.max(barW * progress, 12);
+    const fillW = Math.max(barW * progress, 12 * S);
 
     ctx.save();
     roundRect(ctx, barX, trackY, barW, barH, barH / 2);
     ctx.clip();
 
-    // Gradient fill matching HTML: #5b31df → #9b72ff → #fff → #9b72ff → #5b31df
     const fillGrad = ctx.createLinearGradient(barX, 0, barX + fillW, 0);
     fillGrad.addColorStop(0, '#5b31df');
     fillGrad.addColorStop(0.3, '#9b72ff');
@@ -411,9 +391,8 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
     ctx.fillStyle = fillGrad;
     ctx.fillRect(barX, trackY, fillW, barH);
 
-    // Glow
     ctx.shadowColor = 'rgba(255,255,255,0.6)';
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 12 * S;
     ctx.fillStyle = 'transparent';
     ctx.fillRect(barX, trackY, fillW, barH);
     ctx.shadowBlur = 0;
@@ -423,10 +402,10 @@ async function generateProfileCard(user, userData, xpInfo, rank, repInfo, roleNa
 
   // ===== FOOTER =====
   ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.font = '900 10px CabinetGrotesk';
+  ctx.font = `900 ${10 * S}px CabinetGrotesk`;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
-  ctx.fillText('NEXAVERSE', cX + cW - 24, cY + cH - 14);
+  ctx.fillText('NEXAVERSE', cX + cW - 24 * S, cY + cH - 14 * S);
 
   ctx.restore(); // unclip
 
